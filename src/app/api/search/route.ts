@@ -10,640 +10,235 @@ type Country =
   | "Germany"
   | "UAE";
 
-type Product = {
-  name: string;
-  keywords: string[];
-  image: string;
-  prices: Record<Country, number>;
+type CountryConfig = {
+  code: string;
+  symbol: string;
+  googleLocation: string;
 };
 
-type Store = {
-  id: string;
-  name: string;
-  multiplier: number;
-  rating: number;
+type SerpShoppingResult = {
+  position?: number;
+  product_id?: string;
+  title?: string;
+  source?: string;
+  price?: string;
+  extracted_price?: number;
+  rating?: number;
+  reviews?: number;
+  delivery?: string;
+  thumbnail?: string;
+  product_link?: string;
+  badge?: string;
 };
 
-const currencyMap: Record<
-  Country,
-  {
-    code: string;
-    symbol: string;
-  }
-> = {
-  India: {
-    code: "INR",
-    symbol: "₹",
-  },
-
-  "United States": {
-    code: "USD",
-    symbol: "$",
-  },
-
-  "United Kingdom": {
-    code: "GBP",
-    symbol: "£",
-  },
-
-  Ireland: {
-    code: "EUR",
-    symbol: "€",
-  },
-
-  Canada: {
-    code: "CAD",
-    symbol: "C$",
-  },
-
-  Australia: {
-    code: "AUD",
-    symbol: "A$",
-  },
-
-  Germany: {
-    code: "EUR",
-    symbol: "€",
-  },
-
-  UAE: {
-    code: "AED",
-    symbol: "AED ",
-  },
+type SerpApiResponse = {
+  error?: string;
+  shopping_results?: SerpShoppingResult[];
 };
 
-/*
-  Prototype product catalogue.
-
-  Later this will be replaced by real
-  product data from approved APIs/feeds.
-*/
-const products: Product[] = [
-  {
-    name: "Samsung S25",
-    keywords: [
-      "samsung",
-      "s25",
-      "galaxy s25",
-      "samsung galaxy s25",
-      "samsung s25",
-    ],
-    image: "/products/samsung-s25.png",
-
-    prices: {
-      India: 69999,
-      "United States": 799,
-      "United Kingdom": 699,
-      Ireland: 799,
-      Canada: 1099,
-      Australia: 1299,
-      Germany: 799,
-      UAE: 2999,
-    },
-  },
-
-  {
-    name: "iPhone 16",
-    keywords: [
-      "iphone",
-      "iphone 16",
-      "iphone16",
-      "apple iphone",
-      "apple phone",
-      "apple",
-    ],
-    image: "/products/iphone-16.png",
-
-    prices: {
-      India: 69900,
-      "United States": 799,
-      "United Kingdom": 699,
-      Ireland: 829,
-      Canada: 1099,
-      Australia: 1299,
-      Germany: 799,
-      UAE: 2999,
-    },
-  },
-
-  {
-    name: "MacBook Air",
-    keywords: [
-      "macbook",
-      "macbook air",
-      "macbookair",
-      "mac book",
-      "mac book air",
-      "apple laptop",
-      "mac air",
-      "laptop",
-    ],
-    image: "/products/macbook-air.png",
-
-    prices: {
-      India: 99900,
-      "United States": 999,
-      "United Kingdom": 1099,
-      Ireland: 1199,
-      Canada: 1349,
-      Australia: 1599,
-      Germany: 1199,
-      UAE: 4299,
-    },
-  },
-
-  {
-    name: "Nike Air Max",
-    keywords: [
-      "nike",
-      "nike shoes",
-      "nike air max",
-      "air max",
-      "shoes",
-      "shoe",
-      "sneakers",
-      "sneaker",
-    ],
-    image: "/products/nike-air-max.png",
-
-    prices: {
-      India: 12995,
-      "United States": 160,
-      "United Kingdom": 145,
-      Ireland: 170,
-      Canada: 220,
-      Australia: 250,
-      Germany: 160,
-      UAE: 599,
-    },
-  },
-];
-
-/*
-  Prototype store catalogue.
-
-  The frontend will receive the complete
-  store information from this API.
-*/
-const stores: Store[] = [
-  {
-    id: "product-amazon",
-    name: "Amazon",
-    multiplier: 1,
-    rating: 4.6,
-  },
-
-  {
-    id: "product-flipkart",
-    name: "Flipkart",
-    multiplier: 0.978,
-    rating: 4.5,
-  },
-
-  {
-    id: "product-croma",
-    name: "Croma",
-    multiplier: 1.012,
-    rating: 4.4,
-  },
-
-  {
-    id: "product-ebay",
-    name: "eBay",
-    multiplier: 1.025,
-    rating: 4.3,
-  },
-];
-
-/*
-  Prototype store availability by country.
-*/
-const countryStores: Record<
-  Country,
-  string[]
-> = {
-  India: [
-    "Amazon",
-    "Flipkart",
-    "Croma",
-    "eBay",
-  ],
-
-  "United States": [
-    "Amazon",
-    "eBay",
-  ],
-
-  "United Kingdom": [
-    "Amazon",
-    "eBay",
-  ],
-
-  Ireland: [
-    "Amazon",
-    "eBay",
-  ],
-
-  Canada: [
-    "Amazon",
-    "eBay",
-  ],
-
-  Australia: [
-    "Amazon",
-    "eBay",
-  ],
-
-  Germany: [
-    "Amazon",
-    "eBay",
-  ],
-
-  UAE: [
-    "Amazon",
-    "eBay",
-  ],
+const countryConfig: Record<Country, CountryConfig> = {
+  India: { code: "INR", symbol: "₹", googleLocation: "in" },
+  "United States": { code: "USD", symbol: "$", googleLocation: "us" },
+  "United Kingdom": { code: "GBP", symbol: "£", googleLocation: "uk" },
+  Ireland: { code: "EUR", symbol: "€", googleLocation: "ie" },
+  Canada: { code: "CAD", symbol: "C$", googleLocation: "ca" },
+  Australia: { code: "AUD", symbol: "A$", googleLocation: "au" },
+  Germany: { code: "EUR", symbol: "€", googleLocation: "de" },
+  UAE: { code: "AED", symbol: "AED ", googleLocation: "ae" },
 };
 
-/*
-  Prototype delivery information.
+const validCountries = Object.keys(countryConfig) as Country[];
 
-  Later this will come from the real store
-  API response.
-*/
-const deliveryInfo: Record<
-  string,
-  {
-    delivery: Record<Country, string>;
-    deliveryDays: Record<Country, number>;
-    badge?: string;
-  }
-> = {
-  Amazon: {
-    delivery: {
-      India: "Delivery in 2 days",
-      "United States": "Delivery in 2 days",
-      "United Kingdom": "Delivery in 2–3 days",
-      Ireland: "Delivery in 2–3 days",
-      Canada: "Delivery in 3–5 days",
-      Australia: "Delivery in 3–5 days",
-      Germany: "Delivery in 2–3 days",
-      UAE: "Delivery in 2–3 days",
-    },
-
-    deliveryDays: {
-      India: 2,
-      "United States": 2,
-      "United Kingdom": 2,
-      Ireland: 2,
-      Canada: 3,
-      Australia: 3,
-      Germany: 2,
-      UAE: 2,
-    },
-
-    badge: "TOP RESULT",
-  },
-
-  Flipkart: {
-    delivery: {
-      India: "Delivery tomorrow",
-      "United States": "Delivery in 2–3 days",
-      "United Kingdom": "Delivery in 2–3 days",
-      Ireland: "Delivery in 2–3 days",
-      Canada: "Delivery in 3–5 days",
-      Australia: "Delivery in 3–5 days",
-      Germany: "Delivery in 2–3 days",
-      UAE: "Delivery in 2–3 days",
-    },
-
-    deliveryDays: {
-      India: 1,
-      "United States": 2,
-      "United Kingdom": 2,
-      Ireland: 2,
-      Canada: 3,
-      Australia: 3,
-      Germany: 2,
-      UAE: 2,
-    },
-
-    badge: "BEST PRICE",
-  },
-
-  Croma: {
-    delivery: {
-      India: "Delivery in 3 days",
-      "United States": "Delivery in 3–4 days",
-      "United Kingdom": "Delivery in 3–4 days",
-      Ireland: "Delivery in 3–4 days",
-      Canada: "Delivery in 4–5 days",
-      Australia: "Delivery in 4–5 days",
-      Germany: "Delivery in 3–4 days",
-      UAE: "Delivery in 3–4 days",
-    },
-
-    deliveryDays: {
-      India: 3,
-      "United States": 3,
-      "United Kingdom": 3,
-      Ireland: 3,
-      Canada: 4,
-      Australia: 4,
-      Germany: 3,
-      UAE: 3,
-    },
-  },
-
-  eBay: {
-    delivery: {
-      India: "Delivery in 4 days",
-      "United States": "Delivery in 3–5 days",
-      "United Kingdom": "Delivery in 3–5 days",
-      Ireland: "Delivery in 3–5 days",
-      Canada: "Delivery in 4–6 days",
-      Australia: "Delivery in 4–6 days",
-      Germany: "Delivery in 3–5 days",
-      UAE: "Delivery in 3–5 days",
-    },
-
-    deliveryDays: {
-      India: 4,
-      "United States": 3,
-      "United Kingdom": 3,
-      Ireland: 3,
-      Canada: 4,
-      Australia: 4,
-      Germany: 3,
-      UAE: 3,
-    },
-  },
-};
-
-/*
-  Normalize search text.
-
-  Examples:
-
-  MacBook Air
-  macbook air
-  MACBOOK AIR
-  Mac Book Air
-  MacBookAir
-
-  all become comparable.
-*/
-function normalizeText(value: string) {
+function slugify(value: string) {
   return value
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 90);
 }
 
-/*
-  Search product.
-*/
-function findProduct(query: string) {
-  const normalizedQuery =
-    normalizeText(query);
-
-  if (!normalizedQuery) {
-    return null;
+function parsePrice(item: SerpShoppingResult): number | null {
+  if (
+    typeof item.extracted_price === "number" &&
+    Number.isFinite(item.extracted_price) &&
+    item.extracted_price >= 0
+  ) {
+    return item.extracted_price;
   }
 
-  /*
-    1. Product name match
-  */
-  const nameMatch = products.find(
-    (product) => {
-      const normalizedName =
-        normalizeText(product.name);
+  if (!item.price) return null;
 
-      return (
-        normalizedQuery.includes(
-          normalizedName
-        ) ||
-        normalizedName.includes(
-          normalizedQuery
-        )
-      );
-    }
-  );
+  // Fallback for responses where SerpApi has a formatted price but no numeric field.
+  const match = item.price.match(/[0-9][0-9,.]*/);
+  if (!match) return null;
 
-  if (nameMatch) {
-    return nameMatch;
-  }
-
-  /*
-    2. Keyword match
-  */
-  const keywordMatch = products.find(
-    (product) =>
-      product.keywords.some(
-        (keyword) =>
-          normalizedQuery.includes(
-            normalizeText(keyword)
-          )
-      )
-  );
-
-  if (keywordMatch) {
-    return keywordMatch;
-  }
-
-  /*
-    3. Word-based match
-  */
-  const queryWords = query
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  const wordMatch = products.find(
-    (product) => {
-      const searchableText = [
-        product.name,
-        ...product.keywords,
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return queryWords.every(
-        (word) =>
-          searchableText.includes(word)
-      );
-    }
-  );
-
-  return wordMatch || null;
+  const parsed = Number(match[0].replace(/,/g, ""));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
-export async function GET(
-  request: Request
-) {
+function getDeliveryDays(delivery?: string): number {
+  if (!delivery) return 0;
+
+  const range = delivery.match(/(\d+)\s*(?:-|–|to)\s*(\d+)\s*days?/i);
+  if (range) return Number(range[1]);
+
+  const single = delivery.match(/(?:in|within|by)\s*(\d+)\s*days?/i);
+  if (single) return Number(single[1]);
+
+  return 0;
+}
+
+function isLikelyWrongVariant(title: string, query: string): boolean {
+  // Avoid mixing common model variants (e.g. iPhone 16 Plus/Pro Max) into a
+  // numbered model search, while leaving broad searches such as "iPhone" open.
+  if (!/\d/.test(query)) return false;
+
+  const normalizedTitle = ` ${title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+  const normalizedQuery = ` ${query.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+  const variants = ["plus", "pro", "max", "ultra", "mini", "lite", "fold", "flip", "refurbished", "renewed", "used"];
+
+  if (variants.some((variant) => normalizedTitle.includes(` ${variant} `) && !normalizedQuery.includes(` ${variant} `))) {
+    return true;
+  }
+
+  // A common suffix-model case: iPhone 16e should not be mixed into iPhone 16.
+  if (/iphone\s*16e/i.test(title) && !/iphone\s*16e/i.test(query)) {
+    return true;
+  }
+
+  return false;
+}
+
+export async function GET(request: Request) {
   try {
-    const { searchParams } =
-      new URL(request.url);
+    const { searchParams } = new URL(request.url);
+    const query = searchParams.get("q")?.trim() ?? "";
+    const countryParam = searchParams.get("country") ?? "India";
 
-    const query =
-      searchParams.get("q")?.trim() || "";
-
-    const countryParam =
-      searchParams.get("country") ||
-      "India";
-
-    /*
-      Validate country.
-    */
-    const validCountries =
-      Object.keys(
-        currencyMap
-      ) as Country[];
-
-    const country =
-      validCountries.includes(
-        countryParam as Country
-      )
-        ? (countryParam as Country)
-        : "India";
-
-    /*
-      Search query is required.
-    */
     if (!query) {
+      return NextResponse.json(
+        { success: false, error: "Search query is required." },
+        { status: 400 }
+      );
+    }
+
+    if (query.length > 200) {
+      return NextResponse.json(
+        { success: false, error: "Search query is too long." },
+        { status: 400 }
+      );
+    }
+
+    const country: Country = validCountries.includes(countryParam as Country)
+      ? (countryParam as Country)
+      : "India";
+    const config = countryConfig[country];
+    const apiKey = process.env.SERPAPI_API_KEY;
+
+    if (!apiKey) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "SERPAPI_API_KEY is not configured on the server.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const apiUrl = new URL("https://serpapi.com/search.json");
+    apiUrl.searchParams.set("engine", "google_shopping");
+    apiUrl.searchParams.set("q", query);
+    apiUrl.searchParams.set("gl", config.googleLocation);
+    apiUrl.searchParams.set("hl", "en");
+    apiUrl.searchParams.set("api_key", apiKey);
+
+    const apiResponse = await fetch(apiUrl.toString(), {
+      cache: "no-store",
+      signal: AbortSignal.timeout(20000),
+    });
+
+    const payload = (await apiResponse.json()) as SerpApiResponse;
+
+    if (!apiResponse.ok || payload.error) {
+      // Do not expose the API key or full provider request URL to the client.
+      console.error("SerpApi request failed:", payload.error ?? apiResponse.statusText);
       return NextResponse.json(
         {
           success: false,
           error:
-            "Search query is required.",
+            apiResponse.status === 401 || apiResponse.status === 403
+              ? "Shopping API authentication or access failed. Check the SerpApi key and account access."
+              : apiResponse.status === 429
+                ? "Shopping search limit reached. Check your SerpApi account quota."
+                : "Shopping results are temporarily unavailable. Please try again.",
         },
-        {
-          status: 400,
-        }
+        { status: apiResponse.status === 429 ? 429 : 502 }
       );
     }
 
-    /*
-      Find matching product.
-    */
-    const product =
-      findProduct(query);
+    const rawResults = payload.shopping_results ?? [];
 
-    if (!product) {
-      return NextResponse.json({
-        success: true,
-        query,
-        country,
-        currency:
-          currencyMap[country].code,
-        currencySymbol:
-          currencyMap[country].symbol,
-        results: [],
-        message:
-          "No matching product found.",
-      });
-    }
-
-    /*
-      Determine available stores.
-    */
-    const availableStoreNames =
-      countryStores[country];
-
-    const availableStores =
-      stores.filter((store) =>
-        availableStoreNames.includes(
-          store.name
-        )
-      );
-
-    /*
-      Build complete standardized
-      store results.
-    */
-    const results = availableStores.map(
-      (store) => {
-        const basePrice =
-          product.prices[country];
-
-        const price = Math.round(
-          basePrice *
-            store.multiplier
-        );
-
-        const storeDelivery =
-          deliveryInfo[store.name];
+    const parsedResults = rawResults
+      .filter((item) => Boolean(item.title?.trim()) && Boolean(item.source?.trim()))
+      .filter((item) => !isLikelyWrongVariant(item.title ?? "", query))
+      .map((item, index) => {
+        const price = parsePrice(item);
+        const store = item.source?.trim() || "Shopping result";
+        const product = item.title?.trim() || query;
 
         return {
-          id: store.id,
-
-          store: store.name,
-
-          product: product.name,
-
-          image: product.image,
-
+          id: `shopping-${slugify(store)}-${slugify(item.product_id || product)}-${item.position ?? index + 1}`,
+          store,
+          product,
+          image: item.thumbnail ?? "",
           price,
-
-          currency:
-            currencyMap[country].code,
-
-          currencySymbol:
-            currencyMap[country].symbol,
-
-          rating: store.rating,
-
+          currency: config.code,
+          currencySymbol: config.symbol,
+          rating: typeof item.rating === "number" ? item.rating : null,
           country,
-
-          delivery:
-            storeDelivery?.delivery[
-              country
-            ] ||
-            "Delivery information available",
-
-          deliveryDays:
-            storeDelivery?.deliveryDays[
-              country
-            ] || 0,
-
-          badge:
-            storeDelivery?.badge || null,
+          delivery: item.delivery?.trim() || "Delivery details not provided by listing",
+          deliveryDays: getDeliveryDays(item.delivery),
+          // No made-up promotional badge: only mark the lowest listed price below.
+          badge: null as string | null,
+          productUrl: item.product_link ?? null,
+          reviews: typeof item.reviews === "number" ? item.reviews : null,
+          priceText: item.price ?? null,
         };
-      }
-    );
+      })
+      .filter((item) => item.price !== null)
+      .sort((a, b) => (a.price ?? Number.MAX_SAFE_INTEGER) - (b.price ?? Number.MAX_SAFE_INTEGER));
 
-    /*
-      Final API response.
-    */
+    if (parsedResults.length > 0) {
+      parsedResults[0].badge = "LOWEST LISTED PRICE";
+    }
+
     return NextResponse.json({
       success: true,
-
+      source: "Google Shopping via SerpApi",
       query,
-
       country,
-
-      currency:
-        currencyMap[country].code,
-
-      currencySymbol:
-        currencyMap[country].symbol,
-
-      results,
+      currency: config.code,
+      currencySymbol: config.symbol,
+      resultCount: parsedResults.length,
+      results: parsedResults,
+      message:
+        parsedResults.length === 0
+          ? "No priced shopping listings were returned for this search. Try a more specific or different query."
+          : undefined,
     });
   } catch (error) {
-    console.error(
-      "Search API error:",
-      error
-    );
+    console.error("Search API error:", error);
 
     return NextResponse.json(
       {
         success: false,
         error:
-          "Something went wrong while processing the search.",
+          error instanceof Error && error.name === "TimeoutError"
+            ? "Shopping search timed out. Please try again."
+            : "Something went wrong while searching shopping listings.",
       },
-      {
-        status: 500,
-      }
+      { status: 500 }
     );
   }
 }
