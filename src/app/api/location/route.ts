@@ -36,6 +36,7 @@ type GeoapifyResponse = {
 type LocationResult = {
   city: string;
   state: string;
+  county: string;
   country: string;
   countryCode: string;
   postalCode: string;
@@ -48,6 +49,11 @@ function firstNonEmpty(...values: Array<string | undefined | null>): string {
   return values.find((value) => typeof value === "string" && value.trim().length > 0)?.trim() ?? "";
 }
 
+function normalizePostcode(value: string): string {
+  // Ignore formatting spaces and hyphens (e.g. UK/Irish-style postcodes).
+  return value.trim().toUpperCase().replace(/[\s-]/g, "");
+}
+
 function formatLocation(feature: GeoapifyFeature): LocationResult {
   const p = feature.properties ?? feature;
   const coordinates = feature.geometry?.coordinates ?? [];
@@ -55,7 +61,6 @@ function formatLocation(feature: GeoapifyFeature): LocationResult {
   const nameIsCity = ["city", "town", "village", "municipality", "locality"].includes(resultType);
 
   return {
-    // Use firstNonEmpty rather than ?? because providers sometimes return empty strings.
     city: firstNonEmpty(
       p.city,
       p.town,
@@ -66,7 +71,8 @@ function formatLocation(feature: GeoapifyFeature): LocationResult {
       p.suburb,
       p.district
     ),
-    state: firstNonEmpty(p.state, p.county),
+    state: firstNonEmpty(p.state),
+    county: firstNonEmpty(p.county),
     country: firstNonEmpty(p.country),
     countryCode: firstNonEmpty(p.country_code).toUpperCase(),
     postalCode: firstNonEmpty(p.postcode),
@@ -101,25 +107,51 @@ async function resolveCoordinateLocation(
   lat: number,
   lon: number
 ): Promise<LocationResult | null> {
-  // First ask Geoapify for a city/town/village-level result.
-  const cityFeatures = await fetchGeoapifyFeatures(
-    buildReverseUrl(apiKey, lat, lon, "city")
-  );
-  const cityLocations = cityFeatures.map(formatLocation);
-  const cityMatch = cityLocations.find((location) => location.city !== "");
-  if (cityMatch) return cityMatch;
+  // IMPORTANT: Resolve the nearest address first. It is the best source for
+  // postcode/address details. A type=city result can refer to a city-level
+  // record and its postcode may not match the user's exact coordinates.
+  const [addressFeatures, cityFeatures] = await Promise.all([
+    fetchGeoapifyFeatures(buildReverseUrl(apiKey, lat, lon)),
+    fetchGeoapifyFeatures(buildReverseUrl(apiKey, lat, lon, "city")),
+  ]);
 
-  // If Geoapify cannot resolve a city-level record, ask for the nearest address
-  // without restricting the result type. Its address may still contain city data.
-  const addressFeatures = await fetchGeoapifyFeatures(
-    buildReverseUrl(apiKey, lat, lon)
-  );
   const addressLocations = addressFeatures.map(formatLocation);
-  const addressCityMatch = addressLocations.find((location) => location.city !== "");
-  if (addressCityMatch) return addressCityMatch;
+  const cityLocations = cityFeatures.map(formatLocation);
+  const nearestAddress = addressLocations[0];
+  const addressWithCity = addressLocations.find((location) => location.city !== "");
+  const cityMatch = cityLocations.find((location) => location.city !== "");
 
-  // Do not invent a city if neither response supplies a reliable locality.
-  return addressLocations[0] ?? cityLocations[0] ?? null;
+  if (nearestAddress) {
+    // Use the nearest address record as the primary record. Enrich only missing
+    // administrative fields from other results. Never borrow a postcode from a
+    // city-level fallback, because that can display a postcode for another area.
+    return {
+      city: firstNonEmpty(nearestAddress.city, addressWithCity?.city, cityMatch?.city),
+      state: firstNonEmpty(nearestAddress.state, addressWithCity?.state, cityMatch?.state),
+      county: firstNonEmpty(nearestAddress.county, addressWithCity?.county, cityMatch?.county),
+      country: firstNonEmpty(nearestAddress.country, addressWithCity?.country, cityMatch?.country),
+      countryCode: firstNonEmpty(nearestAddress.countryCode, addressWithCity?.countryCode, cityMatch?.countryCode),
+      // Postcode comes only from the nearest address-level result.
+      postalCode: nearestAddress.postalCode,
+      formattedAddress: nearestAddress.formattedAddress,
+      // Keep the actual coordinates supplied by the browser as the source point.
+      latitude: lat,
+      longitude: lon,
+    };
+  }
+
+  // If no address record is returned, city-level information can still help
+  // identify the city and administrative area, but do not invent a postcode.
+  if (cityMatch) {
+    return {
+      ...cityMatch,
+      postalCode: "",
+      latitude: lat,
+      longitude: lon,
+    };
+  }
+
+  return null;
 }
 
 export async function GET(request: NextRequest) {
@@ -200,7 +232,13 @@ export async function GET(request: NextRequest) {
 
       const postcodeFeatures = await fetchGeoapifyFeatures(searchUrl);
       const postcodeLocations = postcodeFeatures.map(formatLocation);
-      const baseLocation = postcodeLocations.find((item) => item.postalCode !== "") ?? postcodeLocations[0];
+      const normalizedInput = normalizePostcode(postcode);
+
+      // Never silently substitute a nearby/different postcode. Only accept a
+      // result whose normalized postcode matches exactly within the chosen country.
+      const baseLocation = postcodeLocations.find(
+        (item) => item.postalCode !== "" && normalizePostcode(item.postalCode) === normalizedInput
+      );
 
       if (!baseLocation) {
         locations = [];
@@ -219,15 +257,17 @@ export async function GET(request: NextRequest) {
           ...baseLocation,
           city: firstNonEmpty(baseLocation.city, nearbyLocation?.city),
           state: firstNonEmpty(baseLocation.state, nearbyLocation?.state),
+          county: firstNonEmpty(baseLocation.county, nearbyLocation?.county),
           country: firstNonEmpty(baseLocation.country, nearbyLocation?.country),
           countryCode: firstNonEmpty(baseLocation.countryCode, nearbyLocation?.countryCode),
-          postalCode: firstNonEmpty(baseLocation.postalCode, postcode),
+          // Preserve the exact postcode the user entered after validation.
+          postalCode: baseLocation.postalCode,
           formattedAddress: firstNonEmpty(baseLocation.formattedAddress, nearbyLocation?.formattedAddress),
-          latitude: baseLocation.latitude ?? nearbyLocation?.latitude ?? null,
-          longitude: baseLocation.longitude ?? nearbyLocation?.longitude ?? null,
+          latitude: baseLocation.latitude,
+          longitude: baseLocation.longitude,
         }];
       } else {
-        locations = [{ ...baseLocation, postalCode: firstNonEmpty(baseLocation.postalCode, postcode) }];
+        locations = [{ ...baseLocation, postalCode: baseLocation.postalCode }];
       }
 
       source = "postcode";
@@ -239,12 +279,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (locations.length === 0) {
+      const error = source === "postcode"
+        ? "No exact match found for this postal code in the selected country. Check the postal code and country."
+        : "No matching location was found. Check the coordinates.";
       return NextResponse.json(
-        {
-          success: false,
-          error: "No matching location was found. Check the coordinates or postal code.",
-          results: [],
-        },
+        { success: false, error, results: [] },
         { status: 404 }
       );
     }
