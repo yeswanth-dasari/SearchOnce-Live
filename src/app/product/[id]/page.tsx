@@ -69,7 +69,9 @@ function ProductContent() {
   const delivery = searchParams.get("delivery") || "Delivery details not provided by listing";
   const productUrl = searchParams.get("productUrl") || "";
   const badge = searchParams.get("badge") || "";
-  const source = searchParams.get("source") || "Google Shopping via SerpApi";
+  const source = searchParams.get("source") || "Shopping providers";
+  const provider = searchParams.get("provider") || "Google Shopping via SerpApi";
+  const condition = searchParams.get("condition") || "";
 
   const [feedback, setFeedback] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -103,6 +105,8 @@ function ProductContent() {
             <p className="text-sm text-white/40">Listed by</p>
             <h2 className="mt-2 text-2xl font-semibold">{store}</h2>
             <p className="mt-2 text-sm text-white/40">🌍 {selectedCountry}</p>
+            <p className="mt-2 text-xs text-white/40">Source: {provider}</p>
+            {condition && <p className="mt-2 w-fit rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-white/60">Condition: {condition}</p>}
             {badge && <span className="mt-4 w-fit rounded-full border border-white/15 bg-white/[0.05] px-3 py-1 text-[10px] font-semibold tracking-wider text-white/60">{badge}</span>}
             <h1 className="mt-5 text-3xl font-bold leading-tight sm:text-4xl">{productName}</h1>
 
@@ -126,7 +130,7 @@ function ProductContent() {
 
             {productUrl ? (
               <a href={productUrl} target="_blank" rel="noopener noreferrer" className="mt-8 rounded-2xl bg-white py-4 text-center text-sm font-semibold text-black transition hover:bg-white/90">
-                View offer on Google Shopping ↗
+                {provider === "eBay Browse API" ? "View offer on eBay ↗" : "View offer on seller site ↗"}
               </a>
             ) : (
               <p className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center text-sm text-white/50">No external offer link was provided for this listing.</p>

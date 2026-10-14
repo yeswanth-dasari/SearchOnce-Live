@@ -29,6 +29,8 @@ type ApiResult = {
   productUrl?: string | null;
   reviews?: number | null;
   priceText?: string | null;
+  provider?: string;
+  condition?: string | null;
 };
 
 type ApiResponse = {
@@ -41,6 +43,20 @@ type ApiResponse = {
   results: ApiResult[];
   message?: string;
   error?: string;
+  providers?: {
+    ebay?: {
+      status?: string;
+      marketplace?: string | null;
+      resultCount?: number;
+      message?: string;
+    };
+    googleShopping?: {
+      status?: string;
+      marketplace?: string;
+      providerResultCount?: number;
+      matchedResultCount?: number;
+    };
+  };
 };
 
 function formatPrice(amount: number, currencySymbol: string) {
@@ -64,6 +80,7 @@ function ResultsContent() {
   const [sortBy, setSortBy] = useState("lowest");
   const [storeFilter, setStoreFilter] = useState("All Stores");
   const [source, setSource] = useState("");
+  const [providerMessage, setProviderMessage] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -71,6 +88,7 @@ function ResultsContent() {
     const fetchResults = async () => {
       if (!initialQuery.trim()) {
         setResults([]);
+        setProviderMessage("");
         setLoading(false);
         return;
       }
@@ -91,11 +109,13 @@ function ResultsContent() {
 
         setResults(Array.isArray(data.results) ? data.results : []);
         setSource(data.source || "Shopping results");
+        setProviderMessage(data.providers?.ebay?.message || "");
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") return;
         console.error("Search results error:", err);
         setError(err instanceof Error ? err.message : "Unable to load search results.");
         setResults([]);
+        setProviderMessage("");
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -150,6 +170,8 @@ function ResultsContent() {
     if (item.priceText) params.set("priceText", item.priceText);
     if (item.productUrl) params.set("productUrl", item.productUrl);
     if (item.badge) params.set("badge", item.badge);
+    if (item.provider) params.set("provider", item.provider);
+    if (item.condition) params.set("condition", item.condition);
     params.set("source", source);
     router.push(`/product/${encodeURIComponent(item.id)}?${params.toString()}`);
   };
@@ -187,6 +209,9 @@ function ResultsContent() {
           <h1 className="mt-2 text-3xl font-semibold">Results for &quot;{initialQuery}&quot;</h1>
           <p className="mt-2 text-sm text-white/40">Showing offers for <span className="text-white/70">{selectedCountry}</span></p>
           <p className="mt-3 text-xs text-white/30">Shopping offers retrieved via {source || "SearchOnce API"}. Prices and availability can change; verify details with the seller before purchasing.</p>
+          {providerMessage && (
+            <p className="mt-2 text-xs leading-5 text-white/45">{providerMessage}</p>
+          )}
         </div>
 
         {loading && (
@@ -275,7 +300,19 @@ function ResultsContent() {
                       )}
                     </div>
                     <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-white/70">{item.store}</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold text-white/70">{item.store}</span>
+                        {item.provider && (
+                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-white/45">
+                            {item.provider === "eBay Browse API" ? "eBay" : "Google Shopping"}
+                          </span>
+                        )}
+                        {item.condition && (
+                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-white/45">
+                            {item.condition}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex flex-wrap items-center gap-2">
                         {isBestDeal && <span className="rounded-full bg-white px-3 py-1 text-[10px] font-bold tracking-wider text-black">LOWEST PRICE</span>}
                         {item.badge && <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[10px] font-semibold tracking-wider text-white/50">{item.badge}</span>}
@@ -301,7 +338,7 @@ function ResultsContent() {
             </div>
 
             <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
-              <p className="text-xs leading-6 text-white/40">Offers are retrieved through Google Shopping via SerpApi. Listings may include different storage, colour, condition or model variants. Check the seller’s listing for final price, specifications, availability and delivery before buying.</p>
+              <p className="text-xs leading-6 text-white/40">Offers may be retrieved from Google Shopping via SerpApi and eBay where the selected marketplace is supported. Listings can vary by storage, colour, condition, currency, availability and delivery; confirm the seller’s details before buying.</p>
             </div>
           </>
         )}
