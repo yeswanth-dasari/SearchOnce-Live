@@ -29,11 +29,17 @@ type SerpShoppingResult = {
   thumbnail?: string;
   product_link?: string;
   badge?: string;
+  second_hand_condition?: string;
+  snippet?: string;
 };
 
 type SerpApiResponse = {
   error?: string;
   shopping_results?: SerpShoppingResult[];
+  search_information?: {
+    query_displayed?: string;
+    shopping_results_state?: string;
+  };
 };
 
 const countryConfig: Record<Country, CountryConfig> = {
@@ -58,6 +64,19 @@ function slugify(value: string) {
     .slice(0, 90);
 }
 
+function normalizeText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function getTokens(value: string): Set<string> {
+  return new Set(normalizeText(value).split(" ").filter(Boolean));
+}
+
 function parsePrice(item: SerpShoppingResult): number | null {
   if (
     typeof item.extracted_price === "number" &&
@@ -69,7 +88,7 @@ function parsePrice(item: SerpShoppingResult): number | null {
 
   if (!item.price) return null;
 
-  // Fallback for responses where SerpApi has a formatted price but no numeric field.
+  // This is a last-resort fallback. Prefer SerpApi's extracted_price whenever available.
   const match = item.price.match(/[0-9][0-9,.]*/);
   if (!match) return null;
 
@@ -89,22 +108,204 @@ function getDeliveryDays(delivery?: string): number {
   return 0;
 }
 
-function isLikelyWrongVariant(title: string, query: string): boolean {
-  // Avoid mixing common model variants (e.g. iPhone 16 Plus/Pro Max) into a
-  // numbered model search, while leaving broad searches such as "iPhone" open.
-  if (!/\d/.test(query)) return false;
+type ModelIdentity = {
+  family: "iphone" | "samsung-galaxy" | "pixel" | "oneplus" | "redmi-note" | "macbook";
+  model: string;
+  suffix: string;
+};
 
-  const normalizedTitle = ` ${title.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
-  const normalizedQuery = ` ${query.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
-  const variants = ["plus", "pro", "max", "ultra", "mini", "lite", "fold", "flip", "refurbished", "renewed", "used"];
+/**
+ * Extract model identifiers only for product families with recognisable model naming.
+ * This avoids applying a generic digit rule to storage sizes, years, and unrelated products.
+ */
+function getModelIdentity(value: string): ModelIdentity | null {
+  let match: RegExpMatchArray | null;
 
-  if (variants.some((variant) => normalizedTitle.includes(` ${variant} `) && !normalizedQuery.includes(` ${variant} `))) {
+  match = value.match(/\biphone\s*(\d{1,2})(e)?\b/i);
+  if (match) {
+    return { family: "iphone", model: match[1], suffix: (match[2] ?? "").toLowerCase() };
+  }
+
+  if (/\b(?:samsung|galaxy)\b/i.test(value)) {
+    match = value.match(/\b([aszmf])\s*(\d{1,3})\s*(fe|ultra|plus|edge|lite|pro)?\b/i);
+    if (match) {
+      return {
+        family: "samsung-galaxy",
+        model: `${match[1].toLowerCase()}${match[2]}`,
+        suffix: (match[3] ?? "").toLowerCase(),
+      };
+    }
+  }
+
+  match = value.match(/\b(?:google\s+)?pixel\s*(\d{1,2})(a)?\b/i);
+  if (match) {
+    return { family: "pixel", model: match[1], suffix: (match[2] ?? "").toLowerCase() };
+  }
+
+  match = value.match(/\boneplus\s*(\d{1,2})(r|t)?\b/i);
+  if (match) {
+    return { family: "oneplus", model: match[1], suffix: (match[2] ?? "").toLowerCase() };
+  }
+
+  match = value.match(/\bredmi\s+note\s*(\d{1,2})\b/i);
+  if (match) {
+    return { family: "redmi-note", model: match[1], suffix: "" };
+  }
+
+  match = value.match(/\bmacbook\b.*?\bm([1-9])\b/i);
+  if (match) {
+    return { family: "macbook", model: `m${match[1]}`, suffix: "" };
+  }
+
+  return null;
+}
+
+function familyIsMentioned(title: string, family: ModelIdentity["family"]): boolean {
+  switch (family) {
+    case "iphone":
+      return /\biphone\b/i.test(title);
+    case "samsung-galaxy":
+      return /\b(?:samsung|galaxy)\b/i.test(title);
+    case "pixel":
+      return /\bpixel\b/i.test(title);
+    case "oneplus":
+      return /\boneplus\b/i.test(title);
+    case "redmi-note":
+      return /\bredmi\b.*\bnote\b/i.test(title);
+    case "macbook":
+      return /\bmacbook\b/i.test(title);
+  }
+}
+
+function isSecondHandListing(item: SerpShoppingResult): boolean {
+  const condition = normalizeText(item.second_hand_condition ?? "");
+  const titleAndSnippet = normalizeText(`${item.title ?? ""} ${item.snippet ?? ""}`);
+  const secondHandPhrases = [
+    "used",
+    "refurbished",
+    "renewed",
+    "pre owned",
+    "preowned",
+    "second hand",
+    "open box",
+  ];
+
+  return secondHandPhrases.some(
+    (phrase) => condition.includes(phrase) || titleAndSnippet.includes(phrase)
+  );
+}
+
+function isAccessoryListing(item: SerpShoppingResult): boolean {
+  const listingText = normalizeText(`${item.title ?? ""} ${item.snippet ?? ""}`);
+  return /\b(case|cover|screen protector|tempered glass|camera protector|lens protector|charger|charging cable|wall charger|phone holder|replacement screen|screen replacement|battery replacement|skin|sleeve|mount|adapter|power bank|phone stand|mobile holder|bumper case|wallet case|back cover|phone case|case cover|strap|lanyard|screen guard|protective glass)\b/i.test(
+    listingText
+  );
+}
+
+function isRentalOrBundleListing(item: SerpShoppingResult): boolean {
+  const listingText = normalizeText(`${item.title ?? ""} ${item.snippet ?? ""}`);
+  return /\b(on rent|for rent|rent|rental|renting|lease|hire|monthly rental|rental plan|rental service|bundle|combo|batch|wholesale|bulk lot|lot of|pack of|assorted pack|bulk order|subscription)\b/i.test(
+    listingText
+  );
+}
+
+function queryRequestsAccessories(query: string): boolean {
+  return /\b(accessories|accessory|case|cover|screen protector|tempered glass|charger|charging cable|power bank|phone holder|skin|sleeve|mount|adapter|replacement screen|battery replacement)\b/i.test(
+    query
+  );
+}
+
+function queryRequestsRental(query: string): boolean {
+  return /\b(rent|rental|lease|hire|subscription)\b/i.test(query);
+}
+
+function isLikelyWrongVariant(item: SerpShoppingResult, query: string): boolean {
+  const title = item.title?.trim() ?? "";
+  if (!title) return true;
+
+  const normalizedQuery = normalizeText(query);
+  const queryTokens = getTokens(query);
+  const titleTokens = getTokens(title);
+  const queryWantsSecondHand = [
+    "used",
+    "refurbished",
+    "renewed",
+    "preowned",
+    "pre-owned",
+    "second hand",
+    "open box",
+  ].some((term) => normalizedQuery.includes(normalizeText(term)));
+
+  if (isSecondHandListing(item) && !queryWantsSecondHand) return true;
+
+  const queryIdentity = getModelIdentity(query);
+  if (!queryIdentity) {
+    // Keep broad category and unrecognized product searches open.
+    return false;
+  }
+
+  if (isAccessoryListing(item) && !queryRequestsAccessories(query)) return true;
+  if (isRentalOrBundleListing(item) && !queryRequestsRental(query)) return true;
+
+  const normalizedTitle = normalizeText(title);
+
+  // Reject mixed-device promotions (e.g. "Android + iPhone 17 September Batch")
+  // when the user searched for one exact Apple phone model.
+  if (
+    queryIdentity.family === "iphone" &&
+    /\bandroid\b/.test(normalizedTitle) &&
+    /\biphone\b/.test(normalizedTitle)
+  ) {
     return true;
   }
 
-  // A common suffix-model case: iPhone 16e should not be mixed into iPhone 16.
-  if (/iphone\s*16e/i.test(title) && !/iphone\s*16e/i.test(query)) {
+  // A recognized model search must return the same product family and model.
+  if (!familyIsMentioned(title, queryIdentity.family)) return true;
+
+  const titleIdentity = getModelIdentity(title);
+  // If the title doesn't expose a parseable model identity, don't pass it off as
+  // an exact match for a specific model query.
+  if (!titleIdentity) return true;
+
+  if (
+    titleIdentity.family !== queryIdentity.family ||
+    titleIdentity.model !== queryIdentity.model ||
+    titleIdentity.suffix !== queryIdentity.suffix
+  ) {
     return true;
+  }
+
+  // Reject malformed/ambiguous iPhone titles that repeat the main model number,
+  // e.g. "iPhone 17 Pro Max 17 ///" which may be an accessory listing with a poor title.
+  if (queryIdentity.family === "iphone") {
+    const modelNumber = queryIdentity.model;
+    const numberPattern = new RegExp(`\\b${modelNumber}\\b`, "g");
+    const queryNumberCount = (query.match(numberPattern) ?? []).length;
+    const titleNumberCount = (title.match(numberPattern) ?? []).length;
+    if (titleNumberCount > queryNumberCount) return true;
+  }
+
+  // Require modifiers such as Pro, Max, FE, Ultra, and Mini to match both ways.
+  // The model suffix above additionally catches joined labels such as "S25FE".
+  const variantTokens = [
+    "plus",
+    "pro",
+    "max",
+    "ultra",
+    "mini",
+    "lite",
+    "fold",
+    "flip",
+    "fe",
+    "se",
+    "air",
+    "xl",
+  ];
+
+  for (const variant of variantTokens) {
+    const queryHasVariant = queryTokens.has(variant);
+    const titleHasVariant = titleTokens.has(variant);
+    if (queryHasVariant !== titleHasVariant) return true;
   }
 
   return false;
@@ -179,12 +380,12 @@ export async function GET(request: Request) {
 
     const rawResults = payload.shopping_results ?? [];
 
-    const parsedResults = rawResults
-      .filter((item) => Boolean(item.title?.trim()) && Boolean(item.source?.trim()))
-      .filter((item) => !isLikelyWrongVariant(item.title ?? "", query))
+    // Keep listings with a title even when the provider omits the seller/source field.
+    const titledResults = rawResults.filter((item) => Boolean(item.title?.trim()));
+    const priceableResults = titledResults
       .map((item, index) => {
         const price = parsePrice(item);
-        const store = item.source?.trim() || "Shopping result";
+        const store = item.source?.trim() || "Shopping seller";
         const product = item.title?.trim() || query;
 
         return {
@@ -199,18 +400,33 @@ export async function GET(request: Request) {
           country,
           delivery: item.delivery?.trim() || "Delivery details not provided by listing",
           deliveryDays: getDeliveryDays(item.delivery),
-          // No made-up promotional badge: only mark the lowest listed price below.
           badge: null as string | null,
           productUrl: item.product_link ?? null,
           reviews: typeof item.reviews === "number" ? item.reviews : null,
           priceText: item.price ?? null,
+          _raw: item,
         };
       })
-      .filter((item) => item.price !== null)
+      .filter((item) => item.price !== null);
+
+    const matchingResults = priceableResults
+      .filter((item) => !isLikelyWrongVariant(item._raw, query))
+      .map(({ _raw: _unused, ...item }) => item)
       .sort((a, b) => (a.price ?? Number.MAX_SAFE_INTEGER) - (b.price ?? Number.MAX_SAFE_INTEGER));
 
-    if (parsedResults.length > 0) {
-      parsedResults[0].badge = "LOWEST LISTED PRICE";
+    if (matchingResults.length > 0) {
+      matchingResults[0].badge = "LOWEST LISTED PRICE";
+    }
+
+    let message: string | undefined;
+    if (matchingResults.length === 0) {
+      if (rawResults.length === 0) {
+        message = "Google Shopping did not return listings for this search in the selected country. Try a shorter query or another country.";
+      } else if (priceableResults.length === 0) {
+        message = "Listings were found, but none included a readable price. Try another search or country.";
+      } else if (priceableResults.length > 0) {
+        message = "Listings were found, but none matched the requested model/variant with a price. Try a simpler query or check another country.";
+      }
     }
 
     return NextResponse.json({
@@ -220,12 +436,15 @@ export async function GET(request: Request) {
       country,
       currency: config.code,
       currencySymbol: config.symbol,
-      resultCount: parsedResults.length,
-      results: parsedResults,
-      message:
-        parsedResults.length === 0
-          ? "No priced shopping listings were returned for this search. Try a more specific or different query."
-          : undefined,
+      resultCount: matchingResults.length,
+      results: matchingResults,
+      message,
+      diagnostics: {
+        providerResultCount: rawResults.length,
+        titledResultCount: titledResults.length,
+        pricedResultCount: priceableResults.length,
+        matchedResultCount: matchingResults.length,
+      },
     });
   } catch (error) {
     console.error("Search API error:", error);
