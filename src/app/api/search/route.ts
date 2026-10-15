@@ -55,6 +55,10 @@ type SerpShoppingResult = {
 
   snippet?: string;
 
+  extensions?: string[];
+
+  tagline?: string;
+
 };
 
 type SerpApiResponse = {
@@ -320,14 +324,48 @@ function isSecondHandListing(item: SerpShoppingResult): boolean {
 
 }
 
-function isAccessoryListing(item: SerpShoppingResult): boolean {
-  // Use the listing title as the main signal. Descriptions may mention an
-  // included accessory even when the actual listing is the device itself.
-  const listingTitle = normalizeText(item.title ?? "");
-  const accessoryPattern =
-    /\b(?:accessor(?:y|ies)|cases?|covers?|screen protectors?|tempered glass|camera protectors?|lens protectors?|chargers?|charging cables?|usb cables?|wall chargers?|wireless chargers?|phone holders?|replacement screens?|screen replacements?|battery replacements?|battery packs?|skins?|sleeves?|mounts?|adapters?|power banks?|phone stands?|mobile holders?|bumper cases?|wallet cases?|back covers?|phone cases?|straps?|lanyards?|screen guards?|protective glass|kickstands?|pop sockets?|car mounts?|car holders?|phone rings?|lens glass|charging ports?|sim trays?|volume buttons?|camera modules?|speaker replacements?|vibration motors?|rear glass|front glass|glass replacements?|parts?|replacement parts?|spare parts?|repair kits?|repair tools?|housing|frames?|flex cables?|screen assemblies?|display assemblies?|digitizers?|dock connectors?|logic boards?|motherboards?|earpieces?|loudspeakers?|adhesive strips?|repair services?|laptop bags?|computer bags?|backpacks?|cooling pads?|keyboards?|computer mice|mice|monitors?|external displays?|docking stations?|docks?|styluses?|apple pencils?|earbuds?|headphones?|headsets?|webcams?|game controllers?|carrying cases?)\b/i;
+function isAccessoryListing(item: SerpShoppingResult, query: string): boolean {
+  const rawTitle = item.title ?? "";
+  const listingTitle = normalizeText(rawTitle);
+  const listingSource = normalizeText(item.source ?? "");
+  const normalizedQuery = normalizeText(query);
 
-  return accessoryPattern.test(listingTitle);
+  const accessoryPattern =
+    /\b(?:accessor(?:y|ies)|cases?|covers?|screen protectors?|tempered glass|camera protectors?|lens protectors?|chargers?|charging cables?|usb cables?|wall chargers?|wireless chargers?|phone holders?|replacement screens?|screen replacements?|lcd\s*(?:screen|display|assembly|replacement|panel|flex)|oled\s*(?:screen|assembly|replacement|panel|flex)|(?:screen|display)\s*(?:assembly|replacement|flex|panel)|touch\s*screen|touchscreen|digitizer|display\s*panel|battery replacements?|battery packs?|skins?|sleeves?|mounts?|adapters?|power banks?|phone stands?|mobile holders?|bumpers?|wallet cases?|back covers?|phone cases?|straps?|lanyards?|screen guards?|protective glass|kickstands?|pop sockets?|car mounts?|car holders?|phone rings?|lens glass|charging ports?|sim trays?|volume buttons?|camera modules?|speaker replacements?|vibration motors?|rear glass|front glass|glass replacements?|parts?|replacement parts?|spare parts?|repair kits?|repair tools?|housing|frames?|flex cables?|screen assemblies?|display assemblies?|digitizers?|dock connectors?|logic boards?|motherboards?|earpieces?|loudspeakers?|adhesive strips?|repair services?|laptop bags?|computer bags?|backpacks?|cooling pads?|keyboards?|computer mice|mice|monitors?|external displays?|docking stations?|docks?|styluses?|apple pencils?|earbuds?|headphones?|headsets?|webcams?|game controllers?|carrying cases?)\b/i;
+
+  // Some accessory listings use product-line names instead of the word "case",
+  // and international listings may describe camera glass/lenses in another language.
+  const translatedAccessoryPattern =
+    /\b(?:lenti vetro|macchina fotografica|lente fotocamera|lenti fotocamera|fotocamera posteriore|vetro fotocamera|camera lens kit|rear camera glass|lens glass set|per iphone|per samsung|per galaxy|per ipad|for iphone|for samsung|for galaxy|for ipad|compatible with|designed for)\b/i;
+
+  const accessoryFirstBrandPattern =
+    /\b(?:rhinoshield|rhino shield|spigen|otterbox|mous|uag|urban armor gear|pitaka|dbrand|zagg|supcase)\b/i;
+  const knownAccessoryLinePattern = /\b(?:solidx|mod nx|crashguard)\b/i;
+
+  const deviceQuery =
+    /\b(?:iphone|ipad|samsung|galaxy|pixel|oneplus|redmi|macbook|smartphone|mobile phone|laptop|tablet)\b/i.test(
+      normalizedQuery
+    );
+
+  const explicitAccessoryQuery =
+    queryRequestsAccessories(query) ||
+    accessoryFirstBrandPattern.test(normalizedQuery) ||
+    knownAccessoryLinePattern.test(normalizedQuery);
+
+  if (accessoryPattern.test(listingTitle)) return true;
+  if (translatedAccessoryPattern.test(listingTitle)) return true;
+
+  // When users search for a device rather than its accessories, suppress
+  // accessory-focused retailers/product lines that omit words like "case".
+  if (!explicitAccessoryQuery && deviceQuery) {
+    if (accessoryFirstBrandPattern.test(listingSource) ||
+        accessoryFirstBrandPattern.test(listingTitle) ||
+        knownAccessoryLinePattern.test(listingTitle)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function isRentalOrBundleListing(item: SerpShoppingResult): boolean {
@@ -338,7 +376,7 @@ function isRentalOrBundleListing(item: SerpShoppingResult): boolean {
 }
 
 function queryRequestsAccessories(query: string): boolean {
-  return /\b(accessor(?:y|ies)|cases?|covers?|screen protectors?|tempered glass|chargers?|charging cables?|usb cables?|power banks?|phone holders?|skins?|sleeves?|mounts?|adapters?|replacement screens?|battery replacements?|batteries|parts?|spare parts?|replacement parts?|repair kits?|repair tools?|camera protectors?|lens protectors?|charging ports?|sim trays?|screen guards?|display assemblies?|digitizers?|phone stands?|straps?|lanyards?|laptop bags?|computer bags?|backpacks?|cooling pads?|keyboards?|computer mice|mice|monitors?|external displays?|docking stations?|docks?|styluses?|apple pencils?|earbuds?|headphones?|headsets?|webcams?|game controllers?|carrying cases?)\b/i.test(
+  return /\b(accessor(?:y|ies)|cases?|covers?|screen protectors?|tempered glass|chargers?|charging cables?|usb cables?|power banks?|phone holders?|skins?|sleeves?|mounts?|adapters?|replacement screens?|battery replacements?|batteries|parts?|spare parts?|replacement parts?|repair kits?|repair tools?|camera protectors?|lens protectors?|camera lenses?|lens glass|rear camera glass|lenti vetro|macchina fotografica|lente fotocamera|lenti fotocamera|bumpers?|charging ports?|sim trays?|screen guards?|display assemblies?|digitizers?|phone stands?|straps?|lanyards?|laptop bags?|computer bags?|backpacks?|cooling pads?|keyboards?|computer mice|mice|monitors?|external displays?|docking stations?|docks?|styluses?|apple pencils?|earbuds?|headphones?|headsets?|webcams?|game controllers?|carrying cases?|solidx|mod nx|crashguard|rhinoshield|rhino shield|spigen|otterbox|mous|uag|pitaka|dbrand|zagg|supcase)\b/i.test(
     query
   );
 }
@@ -351,6 +389,63 @@ function queryRequestsBundle(query: string): boolean {
   return /\b(bundle|bundles|combo|combos|batch|wholesale|bulk|lot|lots|pack|packs|assorted)\b/i.test(
     query
   );
+}
+
+/**
+ * Product titles sometimes contain a phone model name while the actual item is
+ * a case, skin, lens kit, or replacement part. Shopping APIs do not consistently
+ * return a usable category field, so for phone/tablet searches we also require
+ * a positive handset/device signal (storage, unlocked/SIM details, or explicit
+ * device wording) unless the user specifically searched for an accessory.
+ *
+ * This is intentionally conservative: sparse titles without device specs may be
+ * excluded rather than presenting an accessory as a phone.
+ */
+function isPhoneOrTabletQuery(query: string): boolean {
+  const normalized = normalizeText(query);
+  const identity = getModelIdentity(query);
+
+  if (
+    identity &&
+    ["iphone", "samsung-galaxy", "pixel", "oneplus", "redmi-note"].includes(identity.family)
+  ) {
+    return true;
+  }
+
+  return /\b(?:iphone\d*|ipad|pixel(?:\s+\d{1,2})?|oneplus(?:\s+\d{1,2})?|redmi(?:\s+note)?(?:\s+\d{1,2})?|smartphone|mobile phone|cell phone|handset|galaxy\s+[aszmf]\s*\d{1,3})\b/i.test(
+    normalized
+  );
+}
+
+function hasHandsetEvidence(item: SerpShoppingResult): boolean {
+  const evidenceText = normalizeText(
+    [
+      item.title ?? "",
+      item.snippet ?? "",
+      item.tagline ?? "",
+      ...(item.extensions ?? []),
+      item.second_hand_condition ?? "",
+    ].join(" ")
+  );
+
+  // Strong product signals commonly present on actual phone/device listings.
+  // We intentionally do not count colour, slogans, "5G", or the model name alone.
+  return /\b(?:\d{2,4}\s?(?:gb|tb)|\d(?:\.\d)?\s?tb|unlocked|factory unlocked|sim free|dual sim|esim|nano sim|smartphone|mobile phone|cell phone|handset|imei|battery health|internal storage|storage capacity|wi fi\s?(?:only|cellular)|wi fi cellular|cellular version|with sim|sim card)\b/i.test(
+    evidenceText
+  );
+}
+
+function isLikelyAccessoryOnlyTitleForDeviceSearch(
+  item: SerpShoppingResult,
+  query: string
+): boolean {
+  if (!isPhoneOrTabletQuery(query)) return false;
+
+  // When the user explicitly asks for accessories/parts, do not apply the
+  // handset-only signal rule.
+  if (queryRequestsAccessories(query)) return false;
+
+  return !hasHandsetEvidence(item);
 }
 
 function isLikelyWrongVariant(item: SerpShoppingResult, query: string): boolean {
@@ -388,7 +483,7 @@ function isLikelyWrongVariant(item: SerpShoppingResult, query: string): boolean 
   // Apply accessory and rental/bundle filtering for every query, including
   // broad searches such as "iPhone", "laptop", or unrecognized model families.
   // Explicit searches for cases, parts, rentals, or bundles are allowed through.
-  if (isAccessoryListing(item) && !queryRequestsAccessories(query)) return true;
+  if (isAccessoryListing(item, query) && !queryRequestsAccessories(query)) return true;
 
   if (
     isRentalOrBundleListing(item) &&
@@ -397,6 +492,10 @@ function isLikelyWrongVariant(item: SerpShoppingResult, query: string): boolean 
   ) {
     return true;
   }
+
+  // Suppress ambiguous phone/tablet listings whose titles contain the model
+  // name but provide no evidence that the listing is the actual device.
+  if (isLikelyAccessoryOnlyTitleForDeviceSearch(item, query)) return true;
 
   const queryIdentity = getModelIdentity(query);
 
@@ -604,12 +703,13 @@ function includeEbayListing(item: EbayItemSummary, query: string): boolean {
 
   const proxy: SerpShoppingResult = {
     title,
+    source: item.seller?.username ?? "",
     snippet: item.shortDescription ?? "",
     second_hand_condition: item.condition ?? "",
   };
 
   // These filters apply even for broad queries such as "iphone".
-  if (isAccessoryListing(proxy) && !queryRequestsAccessories(query)) return false;
+  if (isAccessoryListing(proxy, query) && !queryRequestsAccessories(query)) return false;
   if (
     isRentalOrBundleListing(proxy) &&
     !queryRequestsRental(query) &&
