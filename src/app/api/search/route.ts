@@ -665,6 +665,11 @@ type EbayProviderResult = {
     priceText: string;
     condition: string | null;
     provider: "eBay Browse API";
+    shippingCost: number | null;
+    shippingStatus: "known" | "unknown";
+    shippingText: string;
+    totalPrice: number | null;
+    totalPriceText: string | null;
   }>;
   status: "success" | "unsupported-marketplace" | "not-configured" | "oauth-error" | "browse-error" | "no-matches";
   marketplace: string | null;
@@ -686,15 +691,137 @@ function formatMoney(amount: number, symbol: string): string {
   return `${symbol}${formatted}`;
 }
 
-function getEbayDelivery(item: EbayItemSummary, symbol: string): string {
-  const option = item.shippingOptions?.find((entry) => entry.shippingCost?.value !== undefined);
-  if (!option?.shippingCost) return "Check seller listing for shipping details";
+type ShippingInfo = {
+  amount: number | null;
+  status: "known" | "unknown";
+  label: string;
+};
+
+function unknownShipping(label = "Shipping cost not confirmed"): ShippingInfo {
+  return { amount: null, status: "unknown", label };
+}
+
+function knownShipping(amount: number, symbol: string): ShippingInfo {
+  return {
+    amount,
+    status: "known",
+    label: amount === 0 ? "Free shipping" : `Shipping cost: ${formatMoney(amount, symbol)}`,
+  };
+}
+
+/**
+ * Google Shopping often returns only a delivery phrase or date, not an amount.
+ * Calculate a total only when the delivery text explicitly confirms free shipping
+ * or includes a shipping amount with a currency that matches the selected market.
+ */
+function parseGoogleShipping(deliveryText: string | undefined, config: CountryConfig): ShippingInfo {
+  const text = (deliveryText ?? "").trim();
+  if (!text) return unknownShipping();
+
+  if (/\bfree\b.{0,24}\b(?:shipping|delivery|postage)\b|\b(?:shipping|delivery|postage)\s+(?:is\s+)?free\b/i.test(text)) {
+    return knownShipping(0, config.symbol);
+  }
+
+  const moneyPattern =
+    /(CA\$|AU\$|C\$|A\$|₹|£|€|\$|AED)\s*([0-9][0-9.,]*[0-9]|[0-9])|([0-9][0-9.,]*[0-9]|[0-9])\s*(INR|USD|GBP|EUR|CAD|AUD|AED)\b/gi;
+
+  for (const match of text.matchAll(moneyPattern)) {
+    const index = match.index ?? 0;
+    const matchEnd = index + match[0].length;
+    const context = text.slice(Math.max(0, index - 32), Math.min(text.length, matchEnd + 32));
+    const insideDeliveryField = Boolean(deliveryText && index < deliveryText.length);
+
+    // If a separate descriptor is present, require the money amount to be linked
+    // to shipping/delivery. The delivery field itself is already provider-labeled.
+    if (
+      !insideDeliveryField &&
+      !/\b(?:shipping|ship|delivery|postage|freight|courier)\b/i.test(context)
+    ) {
+      continue;
+    }
+
+    let detectedCurrency: string | null = null;
+    if (match[4]) {
+      detectedCurrency = match[4].toUpperCase();
+    } else {
+      const marker = (match[1] ?? "").toUpperCase();
+      if (marker === "₹") detectedCurrency = "INR";
+      else if (marker === "£") detectedCurrency = "GBP";
+      else if (marker === "€") detectedCurrency = "EUR";
+      else if (marker === "CA$" || marker === "C$") detectedCurrency = "CAD";
+      else if (marker === "AU$" || marker === "A$") detectedCurrency = "AUD";
+      else if (marker === "AED") detectedCurrency = "AED";
+      else if (marker === "$") detectedCurrency = config.code === "USD" ? "USD" : null;
+    }
+
+    if (detectedCurrency !== config.code) continue;
+
+    const rawAmount = (match[2] ?? match[3] ?? "").replace(/\s/g, "");
+    let normalizedAmount = rawAmount;
+
+    if (rawAmount.includes(",") && rawAmount.includes(".")) {
+      // The last separator is treated as the decimal separator.
+      if (rawAmount.lastIndexOf(".") > rawAmount.lastIndexOf(",")) {
+        normalizedAmount = rawAmount.replace(/,/g, "");
+      } else {
+        normalizedAmount = rawAmount.replace(/\./g, "").replace(",", ".");
+      }
+    } else if (rawAmount.includes(",")) {
+      const lastGroupLength = rawAmount.length - rawAmount.lastIndexOf(",") - 1;
+      normalizedAmount =
+        lastGroupLength === 1 || lastGroupLength === 2
+          ? rawAmount.slice(0, rawAmount.lastIndexOf(",")).replace(/,/g, "") +
+            "." +
+            rawAmount.slice(rawAmount.lastIndexOf(",") + 1)
+          : rawAmount.replace(/,/g, "");
+    }
+
+    const amount = Number(normalizedAmount);
+    if (Number.isFinite(amount) && amount >= 0) {
+      return knownShipping(amount, config.symbol);
+    }
+  }
+
+  return unknownShipping();
+}
+
+function getEbayShippingInfo(item: EbayItemSummary, config: CountryConfig): ShippingInfo {
+  const option = item.shippingOptions?.find(
+    (entry) =>
+      entry.shippingCost?.value !== undefined &&
+      entry.shippingCost.currency === config.code
+  );
+  if (!option?.shippingCost) return unknownShipping();
 
   const amount = Number(option.shippingCost.value);
-  if (!Number.isFinite(amount)) return "Check seller listing for shipping details";
-  if (amount === 0) return "Free shipping";
+  if (!Number.isFinite(amount) || amount < 0) return unknownShipping();
 
-  return `Shipping: ${formatMoney(amount, symbol)}`;
+  return knownShipping(amount, config.symbol);
+}
+
+function formatEbayDate(value?: string): string | null {
+  if (!value) return null;
+  const datePart = value.slice(0, 10);
+  const parsed = new Date(`${datePart}T12:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return datePart;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+  }).format(parsed);
+}
+
+function getEbayDelivery(item: EbayItemSummary): string {
+  const option = item.shippingOptions?.find(
+    (entry) => entry.minEstimatedDeliveryDate || entry.maxEstimatedDeliveryDate
+  );
+  if (!option) return "Delivery estimate not provided by listing";
+
+  const min = formatEbayDate(option.minEstimatedDeliveryDate);
+  const max = formatEbayDate(option.maxEstimatedDeliveryDate);
+  if (min && max) return min === max ? `Estimated delivery: ${min}` : `Estimated delivery: ${min}–${max}`;
+  if (min) return `Estimated delivery from ${min}`;
+  if (max) return `Estimated delivery by ${max}`;
+  return "Delivery estimate not provided by listing";
 }
 
 function includeEbayListing(item: EbayItemSummary, query: string): boolean {
@@ -835,6 +962,8 @@ async function searchEbay(
       .map((item, index) => {
         const price = Number(item.price!.value);
         const symbol = config.symbol;
+        const shipping = getEbayShippingInfo(item, config);
+        const totalPrice = shipping.amount === null ? null : price + shipping.amount;
 
         return {
           id: item.itemId ?? `ebay-${marketplace.toLowerCase()}-${index + 1}`,
@@ -846,7 +975,7 @@ async function searchEbay(
           currencySymbol: symbol,
           rating: null,
           country,
-          delivery: getEbayDelivery(item, symbol),
+          delivery: getEbayDelivery(item),
           deliveryDays: 0,
           badge: null as string | null,
           productUrl: item.itemWebUrl ?? null,
@@ -854,6 +983,11 @@ async function searchEbay(
           priceText: formatMoney(price, symbol),
           condition: item.condition ?? null,
           provider: "eBay Browse API" as const,
+          shippingCost: shipping.amount,
+          shippingStatus: shipping.status,
+          shippingText: shipping.label,
+          totalPrice,
+          totalPriceText: totalPrice === null ? null : formatMoney(totalPrice, symbol),
         };
       });
 
@@ -978,6 +1112,13 @@ export async function GET(request: Request) {
 
         const store = item.source?.trim() || "Shopping seller";
         const product = item.title?.trim() || query;
+        const shippingInfoText = [
+          item.delivery,
+          ...(item.extensions ?? []),
+          item.tagline,
+        ].filter(Boolean).join(" ");
+        const shipping = parseGoogleShipping(shippingInfoText, config);
+        const totalPrice = shipping.amount === null ? null : price + shipping.amount;
 
         return {
           id: `shopping-${slugify(store)}-${slugify(item.product_id || product)}-${item.position ?? index + 1}`,
@@ -989,13 +1130,18 @@ export async function GET(request: Request) {
           currencySymbol: config.symbol,
           rating: typeof item.rating === "number" ? item.rating : null,
           country,
-          delivery: item.delivery?.trim() || "Delivery details not provided by listing",
+          delivery: item.delivery?.trim() || "Delivery estimate not provided by listing",
           deliveryDays: getDeliveryDays(item.delivery),
           badge: null as string | null,
           productUrl: item.product_link ?? null,
           reviews: typeof item.reviews === "number" ? item.reviews : null,
           priceText: item.price ?? null,
           provider: "Google Shopping via SerpApi" as const,
+          shippingCost: shipping.amount,
+          shippingStatus: shipping.status,
+          shippingText: shipping.label,
+          totalPrice,
+          totalPriceText: totalPrice === null ? null : formatMoney(totalPrice, config.symbol),
           _raw: item,
         };
       })
@@ -1010,12 +1156,28 @@ export async function GET(request: Request) {
 
     // Only combine items from the same marketplace currency, preventing the
     // results page from comparing, e.g., USD prices against INR prices.
-    const combinedResults = [...matchingGoogleResults, ...ebayResult.results]
-      .sort((a, b) => a.price - b.price);
+    const combinedResults = [...matchingGoogleResults, ...ebayResult.results];
 
-    if (combinedResults.length > 0) {
-      combinedResults[0].badge = "LOWEST LISTED PRICE";
+    for (const result of combinedResults) {
+      result.badge = null;
     }
+
+    const knownTotalResults = combinedResults
+      .filter((item) => item.totalPrice !== null)
+      .sort((a, b) => (a.totalPrice ?? Number.MAX_SAFE_INTEGER) - (b.totalPrice ?? Number.MAX_SAFE_INTEGER));
+
+    if (knownTotalResults.length > 0) {
+      knownTotalResults[0].badge = "LOWEST KNOWN TOTAL";
+    } else if (combinedResults.length > 0) {
+      [...combinedResults].sort((a, b) => a.price - b.price)[0].badge = "LOWEST LISTED PRICE";
+    }
+
+    combinedResults.sort((a, b) => {
+      if (a.totalPrice !== null && b.totalPrice !== null) return a.totalPrice - b.totalPrice;
+      if (a.totalPrice !== null) return -1;
+      if (b.totalPrice !== null) return 1;
+      return a.price - b.price;
+    });
 
     let message: string | undefined;
     if (combinedResults.length === 0) {
@@ -1064,6 +1226,8 @@ export async function GET(request: Request) {
         googleMatchedResultCount: matchingGoogleResults.length,
         ebayProviderResultCount: ebayResult.total,
         ebayMatchedResultCount: ebayResult.results.length,
+        offersWithConfirmedShipping: combinedResults.filter((item) => item.shippingStatus === "known").length,
+        offersWithKnownTotal: combinedResults.filter((item) => item.totalPrice !== null).length,
       },
     });
   } catch (error) {

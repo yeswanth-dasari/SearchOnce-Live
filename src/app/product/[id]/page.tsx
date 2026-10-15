@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 type Country =
   | "India"
@@ -49,10 +50,10 @@ const feedbackOptions = [
 ];
 
 function ProductContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   const productName = searchParams.get("q") || "Product listing";
+  const searchQuery = searchParams.get("searchQuery") || productName;
   const store = searchParams.get("store") || "Shopping seller";
   const image = searchParams.get("image") || "";
   const countryParam = searchParams.get("country");
@@ -62,6 +63,14 @@ function ProductContent() {
   const priceParam = searchParams.get("price");
   const price = priceParam !== null && Number.isFinite(Number(priceParam)) ? Number(priceParam) : null;
   const priceText = searchParams.get("priceText");
+  const shippingText = searchParams.get("shippingText") || "Shipping cost not confirmed";
+  const totalPriceParam = searchParams.get("totalPrice");
+  const totalPrice = totalPriceParam !== null && Number.isFinite(Number(totalPriceParam))
+    ? Number(totalPriceParam)
+    : null;
+  const totalPriceText = searchParams.get("totalPriceText") ||
+    (totalPrice !== null ? formatPrice(totalPrice, currency, selectedCountry) : null);
+  const shippingStatus = searchParams.get("shippingStatus") || "unknown";
   const ratingParam = searchParams.get("rating");
   const rating = ratingParam !== null && Number.isFinite(Number(ratingParam)) ? Number(ratingParam) : null;
   const reviewsParam = searchParams.get("reviews");
@@ -82,11 +91,11 @@ function ProductContent() {
     <main className="min-h-screen bg-[#050505] text-white">
       <header className="border-b border-white/10 bg-black/40 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          <button onClick={() => router.push("/")} className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white font-black text-black">S</div>
             <span className="text-xl font-semibold">SearchOnce</span>
-          </button>
-          <button onClick={() => router.back()} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/70 transition hover:bg-white/[0.08]">← Back to results</button>
+          </Link>
+          <Link href={`/results?q=${encodeURIComponent(searchQuery)}&country=${encodeURIComponent(selectedCountry)}`} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/70 transition hover:bg-white/[0.08]">← Back to results</Link>
         </div>
       </header>
 
@@ -123,8 +132,24 @@ function ProductContent() {
               {currencySymbol && <p className="mt-2 text-xs text-white/35">Currency: {currency} ({currencySymbol})</p>}
             </div>
 
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-xs text-white/40">Shipping cost</p>
+                <p className="mt-2 font-semibold">{shippingText}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-xs text-white/40">Total including known shipping</p>
+                <p className="mt-2 text-xl font-bold">{totalPriceText || "Not confirmed"}</p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs leading-5 text-white/35">
+              {shippingStatus === "known"
+                ? "Total adds the listed item price and the shipping amount reported by the provider. Taxes, customs duties and postcode-specific charges may be extra."
+                : "Shipping cost was not confirmed by the provider, so a delivered total is not estimated. Confirm the final amount on the seller’s listing."}
+            </p>
+
             <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-              <p className="text-sm text-white/40">Delivery</p>
+              <p className="text-sm text-white/40">Delivery details</p>
               <p className="mt-2 font-medium">🚚 {delivery}</p>
             </div>
 

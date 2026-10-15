@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type Country =
@@ -31,6 +32,11 @@ type ApiResult = {
   priceText?: string | null;
   provider?: string;
   condition?: string | null;
+  shippingCost?: number | null;
+  shippingStatus?: "known" | "unknown";
+  shippingText?: string;
+  totalPrice?: number | null;
+  totalPriceText?: string | null;
 };
 
 type ApiResponse = {
@@ -77,10 +83,16 @@ function ResultsContent() {
   const [results, setResults] = useState<ApiResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [sortBy, setSortBy] = useState("lowest");
+  const [sortBy, setSortBy] = useState("total");
   const [storeFilter, setStoreFilter] = useState("All Stores");
   const [source, setSource] = useState("");
   const [providerMessage, setProviderMessage] = useState("");
+
+  useEffect(() => {
+    if (!initialQuery.trim()) {
+      router.replace("/");
+    }
+  }, [initialQuery, router]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -136,6 +148,15 @@ function ResultsContent() {
     );
 
     return [...filtered].sort((a, b) => {
+      if (sortBy === "total") {
+        if (a.totalPrice !== null && a.totalPrice !== undefined &&
+            b.totalPrice !== null && b.totalPrice !== undefined) {
+          return a.totalPrice - b.totalPrice;
+        }
+        if (a.totalPrice !== null && a.totalPrice !== undefined) return -1;
+        if (b.totalPrice !== null && b.totalPrice !== undefined) return 1;
+        return a.price - b.price;
+      }
       if (sortBy === "lowest") return a.price - b.price;
       if (sortBy === "rating") return (b.rating ?? -1) - (a.rating ?? -1);
       if (sortBy === "delivery") {
@@ -147,7 +168,15 @@ function ResultsContent() {
   }, [results, storeFilter, sortBy]);
 
   const lowestPrice = results.length ? Math.min(...results.map((item) => item.price)) : 0;
-  const bestStore = results.find((item) => item.price === lowestPrice) || null;
+  const lowestListedStore = results.find((item) => item.price === lowestPrice) || null;
+  const knownTotalOffers = results.filter(
+    (item) => item.totalPrice !== null && item.totalPrice !== undefined
+  );
+  const bestTotalStore = [...knownTotalOffers].sort(
+    (a, b) => (a.totalPrice ?? Number.MAX_SAFE_INTEGER) - (b.totalPrice ?? Number.MAX_SAFE_INTEGER)
+  )[0] ?? null;
+  const bestStore = bestTotalStore ?? lowestListedStore;
+  const usingKnownTotal = bestTotalStore !== null;
 
   const handleSearch = () => {
     if (query.trim()) {
@@ -158,6 +187,7 @@ function ResultsContent() {
   const openProductDetails = (item: ApiResult) => {
     const params = new URLSearchParams();
     params.set("q", item.product || initialQuery);
+    params.set("searchQuery", initialQuery || item.product);
     params.set("country", selectedCountry);
     params.set("store", item.store);
     params.set("image", item.image || "");
@@ -168,6 +198,11 @@ function ResultsContent() {
     if (item.rating !== null && item.rating !== undefined) params.set("rating", String(item.rating));
     if (item.reviews !== null && item.reviews !== undefined) params.set("reviews", String(item.reviews));
     if (item.priceText) params.set("priceText", item.priceText);
+    if (item.shippingText) params.set("shippingText", item.shippingText);
+    if (item.shippingStatus) params.set("shippingStatus", item.shippingStatus);
+    if (item.shippingCost !== null && item.shippingCost !== undefined) params.set("shippingCost", String(item.shippingCost));
+    if (item.totalPrice !== null && item.totalPrice !== undefined) params.set("totalPrice", String(item.totalPrice));
+    if (item.totalPriceText) params.set("totalPriceText", item.totalPriceText);
     if (item.productUrl) params.set("productUrl", item.productUrl);
     if (item.badge) params.set("badge", item.badge);
     if (item.provider) params.set("provider", item.provider);
@@ -180,10 +215,10 @@ function ResultsContent() {
     <main className="min-h-screen bg-[#050505] text-white">
       <header className="border-b border-white/10 bg-black/40 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-5">
-          <button onClick={() => router.push("/")} className="flex shrink-0 items-center gap-3">
+          <Link href="/" className="flex shrink-0 items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white font-black text-black">S</div>
             <span className="text-xl font-semibold">SearchOnce</span>
-          </button>
+          </Link>
           <div className="flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-white/[0.05] p-1">
             <span className="ml-3 mr-2 text-lg text-white/40">⌕</span>
             <input
@@ -242,13 +277,28 @@ function ResultsContent() {
               <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/35">Lowest listed price</p>
+                    <p className="text-xs uppercase tracking-[0.18em] text-white/35">
+                      {usingKnownTotal ? "Lowest known total (price + shipping)" : "Lowest listed price"}
+                    </p>
                     <p className="mt-2 text-lg font-semibold">{bestStore.store}</p>
-                    <p className="mt-1 text-sm text-white/40">Lowest returned listing for {bestStore.product} in {selectedCountry}</p>
+                    <p className="mt-1 text-sm text-white/40">
+                      Lowest returned listing for {bestStore.product} in {selectedCountry}
+                    </p>
+                    <p className="mt-2 text-xs leading-5 text-white/35">
+                      {usingKnownTotal
+                        ? `Shipping is confirmed for ${knownTotalOffers.length} of ${results.length} offers. Taxes, customs duties and location-specific fees may be extra.`
+                        : "No returned offer supplied a confirmed shipping amount, so this is the lowest item price—not a confirmed delivered total."}
+                    </p>
                   </div>
                   <div className="text-left sm:text-right">
-                    <p className="text-2xl font-bold">{bestStore.priceText || formatPrice(bestStore.price, bestStore.currencySymbol)}</p>
-                    <p className="mt-1 text-xs text-white/40">Among {results.length} returned offers</p>
+                    <p className="text-2xl font-bold">
+                      {usingKnownTotal
+                        ? bestStore.totalPriceText || formatPrice(bestStore.totalPrice ?? bestStore.price, bestStore.currencySymbol)
+                        : bestStore.priceText || formatPrice(bestStore.price, bestStore.currencySymbol)}
+                    </p>
+                    <p className="mt-1 text-xs text-white/40">
+                      {usingKnownTotal ? `Among ${knownTotalOffers.length} offers with known shipping` : `Among ${results.length} returned offers`}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -270,7 +320,8 @@ function ResultsContent() {
                 <div className="flex items-center gap-2">
                   <label className="text-xs text-white/40" htmlFor="sort-by">Sort by</label>
                   <select id="sort-by" value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none">
-                    <option value="lowest" className="bg-black">Lowest Price</option>
+                    <option value="total" className="bg-black">Lowest known total (price + shipping)</option>
+                    <option value="lowest" className="bg-black">Lowest listed price</option>
                     <option value="rating" className="bg-black">Highest Rating</option>
                     <option value="delivery" className="bg-black">Fastest Delivery (where available)</option>
                   </select>
@@ -280,8 +331,15 @@ function ResultsContent() {
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               {filteredAndSortedResults.map((item) => {
-                const isBestDeal = item.price === lowestPrice;
-                const savings = item.price - lowestPrice;
+                const isBestDeal = usingKnownTotal
+                  ? item.id === bestTotalStore?.id
+                  : item.price === lowestPrice;
+                const itemTotal = item.totalPrice ?? null;
+                const savingsAboveBestTotal =
+                  itemTotal !== null && bestTotalStore?.totalPrice !== null && bestTotalStore?.totalPrice !== undefined
+                    ? itemTotal - bestTotalStore.totalPrice
+                    : null;
+                const savingsAboveLowestListed = item.price - lowestPrice;
                 return (
                   <article
                     key={item.id}
@@ -314,16 +372,37 @@ function ResultsContent() {
                         )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
-                        {isBestDeal && <span className="rounded-full bg-white px-3 py-1 text-[10px] font-bold tracking-wider text-black">LOWEST PRICE</span>}
+                        {isBestDeal && !item.badge && (
+                          <span className="rounded-full bg-white px-3 py-1 text-[10px] font-bold tracking-wider text-black">
+                            {usingKnownTotal ? "LOWEST TOTAL" : "LOWEST PRICE"}
+                          </span>
+                        )}
                         {item.badge && <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[10px] font-semibold tracking-wider text-white/50">{item.badge}</span>}
                       </div>
                     </div>
                     <h2 className="mt-3 text-xl font-semibold">{item.product}</h2>
                     <div className="mt-5 flex items-end justify-between gap-4">
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs text-white/40">Listed price</p>
                         <p className="mt-1 text-2xl font-bold">{item.priceText || formatPrice(item.price, item.currencySymbol)}</p>
-                        <p className="mt-2 text-xs text-white/35">{isBestDeal ? "Lowest returned price" : `${formatPrice(savings, item.currencySymbol)} above lowest returned price`}</p>
+                        <p className="mt-2 text-xs text-white/45">{item.shippingText || "Shipping cost not confirmed"}</p>
+                        <div className="mt-3 border-t border-white/10 pt-3">
+                          <p className="text-xs text-white/40">Total including known shipping</p>
+                          <p className="mt-1 text-lg font-semibold">
+                            {item.totalPriceText || "Not confirmed"}
+                          </p>
+                          <p className="mt-2 text-xs text-white/35">
+                            {usingKnownTotal
+                              ? savingsAboveBestTotal === null
+                                ? "Not ranked by total: shipping is unconfirmed"
+                                : isBestDeal
+                                  ? "Lowest known total"
+                                  : `${formatPrice(Math.max(0, savingsAboveBestTotal), item.currencySymbol)} above lowest known total`
+                              : isBestDeal
+                                ? "Lowest listed price"
+                                : `${formatPrice(Math.max(0, savingsAboveLowestListed), item.currencySymbol)} above lowest listed price`}
+                          </p>
+                        </div>
                       </div>
                       <div className="text-right">
                         <p className="text-sm">{item.rating !== null ? `⭐ ${item.rating}` : "Rating unavailable"}</p>
@@ -338,7 +417,7 @@ function ResultsContent() {
             </div>
 
             <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
-              <p className="text-xs leading-6 text-white/40">Offers may be retrieved from Google Shopping via SerpApi and eBay where the selected marketplace is supported. Listings can vary by storage, colour, condition, currency, availability and delivery; confirm the seller’s details before buying.</p>
+              <p className="text-xs leading-6 text-white/40">Total including known shipping is calculated only when the provider explicitly reports a shipping amount or free shipping. If shipping is unconfirmed, the total is left blank and the offer is not ranked by a delivered total. Taxes, customs duties and postal-code-specific charges may be extra; confirm the final amount with the seller before buying.</p>
             </div>
           </>
         )}
