@@ -78,6 +78,15 @@ function ResultsContent() {
 
   const initialQuery = searchParams.get("q") || "";
   const selectedCountry = (searchParams.get("country") as Country) || "India";
+  const originCategory = searchParams.get("category") || "";
+  const returnParams = new URLSearchParams({ country: selectedCountry });
+  for (const key of ["city", "state", "county", "postcode"]) {
+    const value = searchParams.get(key);
+    if (value) returnParams.set(key, value);
+  }
+  const backHref = originCategory
+    ? `/category/${encodeURIComponent(originCategory)}?${returnParams.toString()}`
+    : "/";
 
   const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<ApiResult[]>([]);
@@ -189,6 +198,12 @@ function ResultsContent() {
     params.set("q", item.product || initialQuery);
     params.set("searchQuery", initialQuery || item.product);
     params.set("country", selectedCountry);
+    const originCategory = searchParams.get("category");
+    if (originCategory) params.set("category", originCategory);
+    for (const key of ["city", "state", "county", "postcode"]) {
+      const value = searchParams.get(key);
+      if (value) params.set(key, value);
+    }
     params.set("store", item.store);
     params.set("image", item.image || "");
     params.set("price", String(item.price));
@@ -213,27 +228,37 @@ function ResultsContent() {
 
   return (
     <main className="min-h-screen bg-[#050505] text-white">
-      <header className="border-b border-white/10 bg-black/40 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-5">
-          <Link href="/" className="flex shrink-0 items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white font-black text-black">S</div>
-            <span className="text-xl font-semibold">SearchOnce</span>
-          </Link>
-          <div className="flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-white/[0.05] p-1">
-            <span className="ml-3 mr-2 text-lg text-white/40">⌕</span>
-            <input
-              type="text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => { if (event.key === "Enter") handleSearch(); }}
-              className="h-10 min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/30"
-              placeholder="Search products..."
-              aria-label="Search products"
-            />
-            <button onClick={handleSearch} className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-white/90">Search</button>
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050505]/95 backdrop-blur-xl">
+        <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 sm:py-4">
+          <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 sm:gap-4">
+            <Link href={backHref} className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2 text-xs text-white/75 transition hover:bg-white/[0.08] hover:text-white sm:gap-2 sm:px-3 sm:text-sm" aria-label="Back to previous page">
+              <span aria-hidden="true">←</span><span>Back</span>
+            </Link>
+            <Link href="/" className="flex items-center justify-self-center gap-2.5" aria-label="SearchOnce homepage">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white font-black text-black sm:h-10 sm:w-10">S</span>
+              <span className="text-base font-semibold sm:text-xl">SearchOnce</span>
+            </Link>
+            <Link href="/" className="inline-flex items-center justify-self-end gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2 text-xs text-white/75 transition hover:bg-white/[0.08] hover:text-white sm:gap-2 sm:px-3 sm:text-sm" aria-label="Go to homepage">
+              <span aria-hidden="true">⌂</span><span>Home</span>
+            </Link>
           </div>
-          <div className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm md:flex">
-            <span>🌍</span><span className="text-white/60">{selectedCountry}</span>
+          <div className="mt-3 flex items-center gap-3">
+            <div className="flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-white/[0.05] p-1">
+              <span className="ml-3 mr-2 text-lg text-white/40">⌕</span>
+              <input
+                type="text"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Enter") handleSearch(); }}
+                className="h-10 min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/30"
+                placeholder="Search products..."
+                aria-label="Search products"
+              />
+              <button onClick={handleSearch} className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-black transition hover:bg-white/90 sm:px-4 sm:text-sm">Search</button>
+            </div>
+            <div className="hidden shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/60 sm:flex">
+              <span>🌍</span><span>{selectedCountry}</span>
+            </div>
           </div>
         </div>
       </header>

@@ -54,6 +54,14 @@ function ProductContent() {
 
   const productName = searchParams.get("q") || "Product listing";
   const searchQuery = searchParams.get("searchQuery") || productName;
+  const originCategory = searchParams.get("category") || "";
+  const backParams = new URLSearchParams({ q: searchQuery, country: searchParams.get("country") || "India" });
+  if (originCategory) backParams.set("category", originCategory);
+  for (const key of ["city", "state", "county", "postcode"]) {
+    const value = searchParams.get(key);
+    if (value) backParams.set(key, value);
+  }
+  const backToResultsHref = `/results?${backParams.toString()}`;
   const store = searchParams.get("store") || "Shopping seller";
   const image = searchParams.get("image") || "";
   const countryParam = searchParams.get("country");
@@ -89,13 +97,18 @@ function ProductContent() {
 
   return (
     <main className="min-h-screen bg-[#050505] text-white">
-      <header className="border-b border-white/10 bg-black/40 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white font-black text-black">S</div>
-            <span className="text-xl font-semibold">SearchOnce</span>
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050505]/95 backdrop-blur-xl">
+        <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-2 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
+          <Link href={backToResultsHref} className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2 text-xs text-white/75 transition hover:bg-white/[0.08] hover:text-white sm:gap-2 sm:px-3 sm:text-sm" aria-label="Back to results">
+            <span aria-hidden="true">←</span><span>Back</span>
           </Link>
-          <Link href={`/results?q=${encodeURIComponent(searchQuery)}&country=${encodeURIComponent(selectedCountry)}`} className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/70 transition hover:bg-white/[0.08]">← Back to results</Link>
+          <Link href="/" className="flex items-center justify-self-center gap-2.5" aria-label="SearchOnce homepage">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white font-black text-black sm:h-10 sm:w-10">S</span>
+            <span className="text-base font-semibold sm:text-xl">SearchOnce</span>
+          </Link>
+          <Link href="/" className="inline-flex items-center justify-self-end gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-2 text-xs text-white/75 transition hover:bg-white/[0.08] hover:text-white sm:gap-2 sm:px-3 sm:text-sm" aria-label="Go to homepage">
+            <span aria-hidden="true">⌂</span><span>Home</span>
+          </Link>
         </div>
       </header>
 
