@@ -531,20 +531,27 @@ export default function Home() {
    return (
       <main
          onClick={() => setStarted(true)}
-         className="relative min-h-screen cursor-pointer overflow-x-clip bg-[#050505] text-white"
+         className="relative min-h-screen min-h-[100svh] cursor-pointer overflow-x-clip bg-[#050505] text-white"
       >
          {/* Background glow */}
-         <div className="pointer-events-none absolute inset-0">
-            <div className="absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500/10 blur-[120px]" />
-            <div className="absolute left-1/2 top-1/2 h-[300px] w-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/5" />
-            <div className="absolute left-1/2 top-1/2 h-[430px] w-[430px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.03]" />
+         <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute left-1/2 top-[42%] h-[340px] w-[340px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500/[0.08] blur-[100px] sm:top-1/2 sm:h-[500px] sm:w-[500px] sm:bg-blue-500/10 sm:blur-[120px]" />
+            <div className="absolute left-1/2 top-[42%] h-[250px] w-[250px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/5 sm:top-1/2 sm:h-[300px] sm:w-[300px]" />
+            <div className="absolute left-1/2 top-[42%] h-[330px] w-[330px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.03] sm:top-1/2 sm:h-[430px] sm:w-[430px]" />
          </div>
+         {/* Mobile-only subtle spotlight */}
+            <div
+            aria-hidden="true"
+            className="searchonce-mobile-spotlight"
+         />
          {/* Floating store logos: logo-only for Amazon/eBay; names remain on the other cards. */}
          {stores.map((store) => (
             <div
                aria-hidden="true"
                key={store.name}
-               className="pointer-events-none absolute z-0 hidden h-[60px] 2xl:block"
+               className={`searchonce-store-card pointer-events-none absolute z-0 hidden min-[1280px]:block h-[60px] ${
+                  store.position.left ? "searchonce-store-card-left" : "searchonce-store-card-right"
+               }`}
                style={{
                   ...store.position,
                   width: storeCardWidths[store.type],
@@ -565,20 +572,20 @@ export default function Home() {
             </div>
          ))}
          {/* Main content */}
-         <section className="relative z-10 flex min-h-screen flex-col items-center justify-start px-6 pb-24 pt-7 text-center sm:pt-9">
+         <section className="relative z-10 flex min-h-screen min-h-[100svh] flex-col items-center justify-center px-5 pb-[calc(84px+env(safe-area-inset-bottom))] pt-5 text-center sm:justify-center sm:px-6 sm:pb-24 sm:pt-9 md:pt-10 lg:pt-12 xl:justify-start">
             {/* SearchOnce logo */}
-            <div className="mb-6">
-               <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-xl font-black text-black shadow-[0_0_40px_rgba(255,255,255,0.15)]">
+            <div className="mb-5 sm:mb-6">
+               <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-lg font-black text-black shadow-[0_0_32px_rgba(255,255,255,0.12)] sm:h-12 sm:w-12 sm:text-xl sm:shadow-[0_0_40px_rgba(255,255,255,0.15)]">
                      S
                   </div>
-                  <span className="text-3xl font-semibold tracking-[-0.04em]">
+                  <span className="text-2xl font-semibold tracking-[-0.04em] sm:text-3xl">
                      SearchOnce
                   </span>
                </div>
             </div>
             {/* Main heading */}
-            <h1 className="max-w-4xl text-5xl font-semibold leading-[1.05] tracking-[-0.05em] sm:text-6xl md:text-7xl">
+            <h1 className="w-full max-w-[360px] px-0.5 text-[clamp(2rem,8.8vw,3rem)] font-semibold leading-[1.04] tracking-[-0.05em] sm:max-w-4xl sm:px-0 sm:text-6xl md:max-w-[600px] md:text-6xl lg:max-w-[600px] xl:max-w-4xl xl:text-7xl">
                Search once.
                <br />
                <span className="bg-gradient-to-r from-white via-white to-white/40 bg-clip-text text-transparent">
@@ -586,17 +593,17 @@ export default function Home() {
                </span>
             </h1>
             {/* Description */}
-            <p className="mt-5 max-w-xl text-base leading-7 text-white/50 sm:text-lg">
+            <p className="mt-3 max-w-[340px] px-1 text-sm leading-6 text-white/55 sm:mt-5 sm:max-w-xl sm:px-0 sm:text-lg sm:leading-7">
                Find products from stores around you and compare prices,
                availability and offers in one simple place.
             </p>
             {/* Search */}
             <div
-               className="mt-7 flex w-full max-w-2xl items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.05] p-2 shadow-2xl backdrop-blur-xl"
+               className="mt-5 flex w-full max-w-2xl items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.05] p-1.5 shadow-2xl backdrop-blur-xl sm:mt-7 sm:gap-3 sm:p-2 md:mt-8 md:max-w-[680px] lg:max-w-[600px] xl:max-w-2xl"
                onClick={(event) => event.stopPropagation()}
             >
-               <div className="flex h-12 flex-1 items-center">
-                  <span className="ml-4 mr-3 text-xl text-white/40">⌕</span>
+               <div className="flex h-11 min-w-0 flex-1 items-center sm:h-12">
+                  <span className="ml-2 mr-2 text-lg text-white/40 sm:ml-4 sm:mr-3 sm:text-xl">⌕</span>
                   <input
                      type="text"
                      value={query}
@@ -607,68 +614,85 @@ export default function Home() {
                         }
                      }}
                      placeholder="Search for a product, brand or anything..."
-                     className="h-full w-full bg-transparent text-sm text-white outline-none placeholder:text-white/35 sm:text-base"
+                     className="h-full min-w-0 w-full bg-transparent text-[13px] text-white outline-none placeholder:text-white/35 sm:text-base"
                   />
                </div>
                <button
                   onClick={goToResults}
-                  className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-black transition-all duration-300 hover:scale-[1.02] hover:bg-white/90"
+                  className="shrink-0 rounded-xl bg-white px-3 py-3 text-sm font-semibold text-black transition-all duration-300 hover:scale-[1.02] hover:bg-white/90 sm:px-5"
                >
                   Search
                </button>
             </div>
-                        {/* Compact location and country controls */}
-            <div
-               className="mt-4 flex w-full max-w-5xl flex-wrap items-center justify-center gap-2 text-xs sm:text-sm"
-               onClick={(event) => event.stopPropagation()}
+                        {/* Location and country controls */}
+         <div
+            className="mt-3 flex w-full max-w-5xl flex-wrap items-center justify-center gap-2 text-xs sm:mt-4 sm:gap-2 sm:text-sm md:max-w-[720px] lg:max-w-[640px] xl:max-w-5xl"
+            onClick={(event) => event.stopPropagation()}
+         >
+            <span className="inline-flex items-center text-white/55">Location</span>
+            <button
+               type="button"
+               onClick={detectLocation}
+               disabled={locationLoading}
+               className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-white transition hover:bg-white/10 disabled:opacity-50"
             >
-               <span className="inline-flex items-center text-white/55">
-                  <span>Location</span>
-               </span>
-               <button
-                  type="button"
-                  onClick={detectLocation}
-                  disabled={locationLoading}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-white transition hover:bg-white/10 disabled:opacity-50"
-               >
-                  <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-rose-400" fill="currentColor">
-                     <path d="M12 22s7-6.1 7-13A7 7 0 1 0 5 9c0 6.9 7 13 7 13Zm0-10.2A2.8 2.8 0 1 1 12 6.2a2.8 2.8 0 0 1 0 5.6Z" />
-                  </svg>
-                  {locationLoading ? "Locating..." : "Detect"}
-               </button>
-               <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-white/80">
-                  <span className="text-white/40">City</span>
-                  <span className="max-w-32 truncate">{city || "—"}</span>
-               </div>
-               <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-white/80">
-                  <span className="text-white/40">{locationAreaLabel}</span>
-                  <span className="max-w-40 truncate">{locationState || "—"}</span>
-               </div>
-                  {locationCounty && (
-                     <div className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-white/80">
-                        <span className="text-white/40">County / District</span>
-                        <span className="max-w-40 truncate">{locationCounty}</span>
-                     </div>
-                  )}
-               <select
-                  value={country}
-                  onChange={(event) => setCountry(event.target.value)}
-                  onClick={(event) => event.stopPropagation()}
-                  aria-label="Select country"
-                  className="cursor-pointer rounded-lg border border-white/10 bg-[#17181d] px-3 py-2 text-white outline-none transition hover:bg-white/10"
-               >
-                  <option value="India" className="bg-black">🇮🇳 India</option>
-                  <option value="United States" className="bg-black">🇺🇸 United States</option>
-                  <option value="United Kingdom" className="bg-black">🇬🇧 United Kingdom</option>
-                  <option value="Ireland" className="bg-black">🇮🇪 Ireland</option>
-                  <option value="Canada" className="bg-black">🇨🇦 Canada</option>
-                  <option value="Australia" className="bg-black">🇦🇺 Australia</option>
-                  <option value="Germany" className="bg-black">🇩🇪 Germany</option>
-                  <option value="UAE" className="bg-black">🇦🇪 UAE</option>
-               </select>
+               <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-rose-400" fill="currentColor">
+                  <path d="M12 22s7-6.1 7-13A7 7 0 1 0 5 9c0 6.9 7 13 7 13Zm0-10.2A2.8 2.8 0 1 1 12 6.2a2.8 2.8 0 0 1 0 5.6Z" />
+               </svg>
+               {locationLoading ? "Locating..." : "Detect"}
+            </button>
+            {/* Full location details remain visible on desktop in the first row. */}
+            <div className="hidden items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-white/80 sm:inline-flex">
+               <span className="text-white/40">City</span>
+               <span className="max-w-32 truncate">{city || "—"}</span>
             </div>
+            <div className="hidden items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-white/80 sm:inline-flex">
+               <span className="text-white/40">{locationAreaLabel}</span>
+               <span className="max-w-40 truncate">{locationState || "—"}</span>
+            </div>
+            {locationCounty && (
+               <div className="hidden items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-white/80 sm:inline-flex">
+                  <span className="text-white/40">County / District</span>
+                  <span className="max-w-40 truncate">{locationCounty}</span>
+               </div>
+            )}
+            <select
+               value={country}
+               onChange={(event) => setCountry(event.target.value)}
+               onClick={(event) => event.stopPropagation()}
+               aria-label="Select country"
+               className="max-w-[142px] cursor-pointer rounded-lg border border-white/10 bg-[#17181d] px-2.5 py-2 text-white outline-none transition hover:bg-white/10 sm:max-w-none sm:px-3"
+            >
+               <option value="India" className="bg-black">🇮🇳 India</option>
+               <option value="United States" className="bg-black">🇺🇸 United States</option>
+               <option value="United Kingdom" className="bg-black">🇬🇧 United Kingdom</option>
+               <option value="Ireland" className="bg-black">🇮🇪 Ireland</option>
+               <option value="Canada" className="bg-black">🇨🇦 Canada</option>
+               <option value="Australia" className="bg-black">🇦🇺 Australia</option>
+               <option value="Germany" className="bg-black">🇩🇪 Germany</option>
+               <option value="UAE" className="bg-black">🇦🇪 UAE</option>
+            </select>
+         </div>
+         {/* On phones, show every location value in compact cards instead of hiding it. */}
+         <div
+            className="mt-2 grid w-full max-w-[360px] grid-cols-2 gap-1.5 sm:hidden"
+            onClick={(event) => event.stopPropagation()}
+         >
+            <div className="col-span-2 flex min-w-0 flex-col items-start gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-1.5 text-left">
+               <span className="text-[10px] leading-4 text-white/40">City</span>
+               <span className="w-full truncate text-xs leading-4 text-white/80">{city || "—"}</span>
+            </div>
+            <div className="flex min-w-0 flex-col items-start gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] px-2.5 py-1.5 text-left">
+               <span className="w-full truncate text-[10px] leading-4 text-white/40">{locationAreaLabel}</span>
+               <span className="w-full truncate text-xs leading-4 text-white/80">{locationState || "—"}</span>
+            </div>
+            <div className="flex min-w-0 flex-col items-start gap-0.5 rounded-lg border border-white/10 bg-white/[0.035] px-2.5 py-1.5 text-left">
+               <span className="w-full truncate text-[10px] leading-4 text-white/40">County / District</span>
+               <span className="w-full truncate text-xs leading-4 text-white/80">{locationCounty || "—"}</span>
+            </div>
+         </div>
             <div
-               className="mt-2 flex w-full max-w-[280px] items-center gap-2"
+               className="mt-2 flex w-full max-w-[320px] items-center gap-2 px-1 sm:max-w-[280px] sm:px-0"
                onClick={(event) => event.stopPropagation()}
             >
                <input
@@ -695,64 +719,66 @@ export default function Home() {
                   {locationLoading ? "Searching..." : "Find"}
                </button>
             </div>
-            {(locationMessage || postalCode) && (
             <p
                role="status"
                aria-live="polite"
-               className="mt-1 text-center text-xs text-white/50"
+               className="mt-1 min-h-[2rem] w-full max-w-[350px] px-2 text-center text-[10px] leading-4 text-white/50 sm:min-h-0 sm:max-w-none sm:px-0 sm:text-xs sm:leading-normal"
             >
                {locationMessage}
                {locationMessage && postalCode ? " · " : ""}
                {postalCode && `PIN / Postal code: ${postalCode}`}
             </p>
-            )}
             {/* Bottom message */}
             <div
-               className={`mt-8 sm:mt-10 transition-all duration-700 ${
+               className={`mt-4 sm:mt-8 md:mt-10 transition-all duration-700 ${
                   started ? "opacity-0" : "animate-pulse opacity-60"
                }`}
             >
-               <p className="text-xs uppercase tracking-[0.3em] text-white/40">
+               <p className="text-[10px] uppercase tracking-[0.14em] text-white/40 sm:text-xs sm:tracking-[0.3em]">
                   Find what you're looking for
                </p>
             </div>
-            <p className="mt-1 pb-0 text-center text-xs text-white/25">
+            <p className="mt-3 px-3 pb-0 text-center text-[11px] text-white/25 sm:mt-3 sm:px-0 sm:text-xs">
                One search • Multiple stores • Better decisions
             </p>
          </section>
-      {/* Compact bottom category navigation */}
+      {/* Responsive category navigation: swipe categories on small screens; Home stays accessible. */}
       <nav
          aria-label="Product categories"
-         className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#07080b]/90 px-2 pt-1.5 pb-[max(6px,env(safe-area-inset-bottom))] shadow-[0_-10px_35px_rgba(0,0,0,0.3)] backdrop-blur-2xl"
+         className="fixed inset-x-0 bottom-0 z-40 overflow-hidden border-t border-white/10 bg-[#07080b]/95 px-1.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)] shadow-[0_-10px_35px_rgba(0,0,0,0.3)] backdrop-blur-2xl sm:px-2"
          onClick={(event) => event.stopPropagation()}
       >
-         <div
-            className="mx-auto flex max-w-[1500px] items-stretch justify-between gap-1 overflow-x-auto"
-            style={{ scrollbarWidth: "none" }}
-         >
-            {navigationCategories.map((category) => {
-               const isHome = category.slug === "home";
-               return (
+         <div className="mx-auto flex max-w-[1500px] items-stretch gap-1">
+            <div
+               className="flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x scroll-smooth sm:overflow-visible"
+               style={{ scrollbarWidth: "none" }}
+            >
+               {navigationCategories.filter((category) => category.slug !== "home").map((category) => (
                   <button
                      key={category.slug}
                      type="button"
                      onClick={() => openCategory(category.slug)}
-                     aria-label={isHome ? "Go to homepage" : `Browse ${category.label}`}
-                     aria-current={isHome ? "page" : undefined}
-                     className={`group relative flex min-w-[68px] flex-1 flex-col items-center justify-center gap-1 rounded-t-lg px-2 py-1.5 text-[10px] leading-tight transition-colors duration-200 sm:min-w-0 sm:text-[11px] ${
-                        isHome ? "text-white" : "text-white/65 hover:text-white"
-                     }`}
+                     aria-label={`Browse ${category.label}`}
+                     className="group relative flex min-w-[66px] shrink-0 flex-col items-center justify-center gap-1 rounded-t-lg px-1.5 py-1.5 text-[10px] leading-tight text-white/65 transition-colors duration-200 hover:text-white sm:min-w-0 sm:flex-1 sm:px-2 sm:text-[11px]"
                   >
                      <CategoryIcon name={category.icon} color={category.color} />
                      <span className="whitespace-nowrap">{category.label}</span>
-                     <span
-                        className={`absolute bottom-0 h-0.5 w-5 rounded-full transition-colors ${
-                           isHome ? "bg-blue-400" : "bg-transparent group-hover:bg-white/40"
-                        }`}
-                     />
+                     <span className="absolute bottom-0 h-0.5 w-5 rounded-full bg-transparent transition-colors group-hover:bg-white/40" />
                   </button>
-               );
-            })}
+               ))}
+            </div>
+            <div aria-hidden="true" className="my-1 w-px shrink-0 bg-white/15" />
+            <button
+               type="button"
+               onClick={() => openCategory("home")}
+               aria-label="Go to homepage"
+               aria-current="page"
+               className="group relative flex w-[56px] shrink-0 flex-col items-center justify-center gap-1 rounded-t-lg px-1 py-1.5 text-[10px] leading-tight text-white transition-colors duration-200 sm:w-[74px] sm:px-2 sm:text-[11px]"
+            >
+               <CategoryIcon name="home" color="#F3F4F6" />
+               <span className="whitespace-nowrap">Home</span>
+               <span className="absolute bottom-0 h-0.5 w-5 rounded-full bg-blue-400" />
+            </button>
          </div>
       </nav>
       </main>
