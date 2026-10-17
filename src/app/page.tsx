@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type CSSProperties} from "react";
 import { useRouter } from "next/navigation";
 type Store = {
    name: string;
@@ -535,6 +535,70 @@ export default function Home() {
       >
          {/* Background glow */}
          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            {/* Smart World Grid: refined dotted world-map watermark */}
+            <svg
+               aria-hidden="true"
+               viewBox="0 0 1200 700"
+               preserveAspectRatio="xMidYMid slice"
+               className="searchonce-world-grid absolute inset-0 h-full w-full"
+            >
+               <defs>
+                  <pattern id="searchonce-world-dots" width="10" height="10" patternUnits="userSpaceOnUse">
+                     <circle cx="2" cy="2" r="1.45" fill="#0EA5E9" fillOpacity="0.95" />
+                  </pattern>
+                  <linearGradient id="searchonce-world-arc" x1="0" y1="0" x2="1" y2="1">
+                     <stop offset="0%" stopColor="#0EA5E9" stopOpacity="0.18" />
+                     <stop offset="52%" stopColor="#0EA5E9" stopOpacity="0.72" />
+                     <stop offset="100%" stopColor="#22D3EE" stopOpacity="0.20" />
+                  </linearGradient>
+                  <radialGradient id="searchonce-world-node">
+                     <stop offset="0%" stopColor="#7DD3FC" stopOpacity="0.95" />
+                     <stop offset="35%" stopColor="#38BDF8" stopOpacity="0.48" />
+                     <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
+                  </radialGradient>
+                  <mask id="searchonce-world-fade">
+                     <rect width="1200" height="700" fill="url(#searchonce-world-mask-gradient)" />
+                  </mask>
+                  <radialGradient id="searchonce-world-mask-gradient">
+                     <stop offset="0%" stopColor="white" stopOpacity="0.82" />
+                     <stop offset="58%" stopColor="white" stopOpacity="0.96" />
+                     <stop offset="100%" stopColor="white" stopOpacity="0.34" />
+                  </radialGradient>
+               </defs>
+               <g fill="url(#searchonce-world-dots)" opacity="0.98" mask="url(#searchonce-world-fade)">
+                  {/* Simplified continent silhouettes made from dots, not sharp outlines */}
+                  <path d="M116 190 L154 155 205 143 240 118 286 132 318 157 346 174 365 204 343 228 320 246 307 277 281 293 264 322 238 313 218 284 191 267 179 238 150 224 132 207 Z" />
+                  <path d="M274 323 L307 333 330 365 326 399 344 431 330 470 310 506 292 477 282 437 265 400 259 361 Z" />
+                  <path d="M448 171 L478 150 512 156 536 178 565 184 583 207 569 228 542 231 525 252 500 246 483 226 460 216 Z" />
+                  <path d="M498 266 L538 253 575 269 595 303 586 341 566 377 548 418 526 405 514 371 497 337 487 303 Z" />
+                  <path d="M584 179 L624 150 671 143 704 158 741 149 775 166 812 162 844 184 875 190 895 218 871 240 835 237 810 255 781 244 755 260 726 244 698 253 674 230 644 225 620 204 596 210 Z" />
+                  <path d="M686 269 L719 258 755 272 774 300 762 328 739 350 721 383 697 366 686 334 671 306 Z" />
+                  <path d="M847 391 L884 378 918 391 936 418 920 441 887 449 860 431 Z" />
+                  <path d="M948 458 L979 448 1004 462 1011 483 990 496 965 486 Z" />
+               </g>
+               {/* A few restrained global connection arcs */}
+               <g fill="none" stroke="url(#searchonce-world-arc)" strokeWidth="1.6" strokeLinecap="round">
+                  <path d="M250 218 Q600 35 858 204" />
+                  <path d="M335 410 Q600 170 850 390" />
+                  <path d="M390 300 Q650 525 905 420" />
+                  <path d="M170 270 Q600 620 1030 275" strokeDasharray="2 12" strokeOpacity="0.48" />
+               </g>
+               {/* Small, soft nodes; deliberately no large bright halos */}
+               <g fill="url(#searchonce-world-node)">
+                  <circle cx="250" cy="218" r="13" />
+                  <circle cx="600" cy="250" r="15" />
+                  <circle cx="858" cy="204" r="12" />
+                  <circle cx="850" cy="390" r="11" />
+                  <circle cx="905" cy="420" r="10" />
+               </g>
+               <g fill="#BAE6FD" fillOpacity="0.95">
+                  <circle cx="250" cy="218" r="2.4" />
+                  <circle cx="600" cy="250" r="2.6" />
+                  <circle cx="858" cy="204" r="2.3" />
+                  <circle cx="850" cy="390" r="2.2" />
+                  <circle cx="905" cy="420" r="2.1" />
+               </g>
+            </svg>
             <div className="absolute left-1/2 top-[42%] h-[340px] w-[340px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-500/[0.08] blur-[100px] sm:top-1/2 sm:h-[500px] sm:w-[500px] sm:bg-blue-500/10 sm:blur-[120px]" />
             <div className="absolute left-1/2 top-[42%] h-[250px] w-[250px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/5 sm:top-1/2 sm:h-[300px] sm:w-[300px]" />
             <div className="absolute left-1/2 top-[42%] h-[330px] w-[330px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.03] sm:top-1/2 sm:h-[430px] sm:w-[430px]" />
@@ -742,42 +806,68 @@ export default function Home() {
                One search • Multiple stores • Better decisions
             </p>
          </section>
-      {/* Responsive category navigation: swipe categories on small screens; Home stays accessible. */}
+      
+      {/* Premium glass category navigation: swipe categories on small screens; Home stays accessible. */}
       <nav
          aria-label="Product categories"
-         className="fixed inset-x-0 bottom-0 z-40 overflow-hidden border-t border-white/10 bg-[#07080b]/95 px-1.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)] shadow-[0_-10px_35px_rgba(0,0,0,0.3)] backdrop-blur-2xl sm:px-2"
+         className="searchonce-category-nav fixed inset-x-0 bottom-0 z-40 overflow-hidden px-1.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)] sm:px-2"
          onClick={(event) => event.stopPropagation()}
       >
-         <div className="mx-auto flex max-w-[1500px] items-stretch gap-1">
+         <div className="searchonce-category-nav-inner mx-auto flex max-w-[1500px] items-stretch gap-1">
             <div
                className="flex min-w-0 flex-1 items-stretch gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x scroll-smooth sm:overflow-visible"
                style={{ scrollbarWidth: "none" }}
             >
-               {navigationCategories.filter((category) => category.slug !== "home").map((category) => (
-                  <button
-                     key={category.slug}
-                     type="button"
-                     onClick={() => openCategory(category.slug)}
-                     aria-label={`Browse ${category.label}`}
-                     className="group relative flex min-w-[66px] shrink-0 flex-col items-center justify-center gap-1 rounded-t-lg px-1.5 py-1.5 text-[10px] leading-tight text-white/65 transition-colors duration-200 hover:text-white sm:min-w-0 sm:flex-1 sm:px-2 sm:text-[11px]"
-                  >
-                     <CategoryIcon name={category.icon} color={category.color} />
-                     <span className="whitespace-nowrap">{category.label}</span>
-                     <span className="absolute bottom-0 h-0.5 w-5 rounded-full bg-transparent transition-colors group-hover:bg-white/40" />
-                  </button>
-               ))}
+               {navigationCategories
+                  .filter((category) => category.slug !== "home")
+                  .map((category) => (
+                     <button
+                        key={category.slug}
+                        type="button"
+                        onClick={() => openCategory(category.slug)}
+                        aria-label={`Browse ${category.label}`}
+                        className="searchonce-category-item group relative flex min-w-[66px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1.5 py-1.5 text-[10px] leading-tight text-white/70 transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 sm:min-w-0 sm:flex-1 sm:px-2 sm:text-[11px]"
+                        style={
+                           {
+                              "--category-accent": category.color,
+                           } as CSSProperties
+                        }
+                     >
+                        <span className="searchonce-category-content relative z-[1] flex flex-col items-center justify-center gap-1">
+                           <CategoryIcon
+                              name={category.icon}
+                              color={category.color}
+                           />
+                           <span className="whitespace-nowrap">
+                              {category.label}
+                           </span>
+                        </span>
+                     </button>
+                  ))}
             </div>
-            <div aria-hidden="true" className="my-1 w-px shrink-0 bg-white/15" />
+
+            <div
+               aria-hidden="true"
+               className="my-1 w-px shrink-0 bg-white/15"
+            />
+
             <button
                type="button"
                onClick={() => openCategory("home")}
                aria-label="Go to homepage"
                aria-current="page"
-               className="group relative flex w-[56px] shrink-0 flex-col items-center justify-center gap-1 rounded-t-lg px-1 py-1.5 text-[10px] leading-tight text-white transition-colors duration-200 sm:w-[74px] sm:px-2 sm:text-[11px]"
+               className="searchonce-category-item searchonce-category-home group relative flex w-[56px] shrink-0 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-[10px] leading-tight text-white transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 sm:w-[74px] sm:px-2 sm:text-[11px]"
+               style={
+                  {
+                     "--category-accent": "#F3F4F6",
+                  } as CSSProperties
+               }
             >
-               <CategoryIcon name="home" color="#F3F4F6" />
-               <span className="whitespace-nowrap">Home</span>
-               <span className="absolute bottom-0 h-0.5 w-5 rounded-full bg-blue-400" />
+               <span className="searchonce-category-content relative z-[1] flex flex-col items-center justify-center gap-1">
+                  <CategoryIcon name="home" color="#F3F4F6" />
+                  <span className="whitespace-nowrap">Home</span>
+                  <span className="h-0.5 w-5 rounded-full bg-blue-400" />
+               </span>
             </button>
          </div>
       </nav>

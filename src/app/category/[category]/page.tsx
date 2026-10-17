@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 type Choice = {
@@ -493,18 +493,49 @@ function CategoryContent() {
             </section>}
          </div>
 
-         <nav aria-label="Product categories" className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#07080b]/95 px-1.5 pt-1.5 pb-[max(6px,env(safe-area-inset-bottom))] shadow-[0_-10px_35px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
-            <div className="mx-auto flex max-w-[1500px] items-stretch justify-between gap-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-               {navCategories.map((item) => {
-                  const isHome = item.slug === "home";
-                  return <button key={item.slug} type="button" onClick={() => openRoute(item.slug)} aria-label={isHome ? "Go to homepage" : `Browse ${item.label}`} className={`group relative flex min-w-[62px] flex-1 flex-col items-center justify-center gap-1 rounded-t-lg px-1.5 py-1.5 text-[10px] leading-tight transition sm:min-w-0 sm:py-2 sm:text-[11px] ${item.slug === slug ? "text-white" : "text-white/65 hover:text-white"}`}>
-                     <NavIcon name={item.icon} color={item.slug === slug ? item.color : item.color} />
-                     <span className="whitespace-nowrap">{item.label}</span>
-                     <span className={`absolute bottom-0 h-0.5 w-5 rounded-full ${item.slug === slug ? "opacity-100" : "opacity-0 group-hover:opacity-80"}`} style={{ background: item.color }} />
-                  </button>;
-               })}
+         <nav
+            aria-label="Product categories"
+            className="searchonce-category-nav fixed inset-x-3 bottom-3 z-40 mx-auto max-w-[1500px] rounded-2xl px-2 pt-2 pb-[max(8px,env(safe-area-inset-bottom))]"
+          >
+            <div
+              className="searchonce-category-nav-inner mx-auto flex items-stretch justify-between gap-1 overflow-x-auto"
+              style={{ scrollbarWidth: "none" }}
+            >
+              {navCategories.map((item) => {
+                const isHome = item.slug === "home";
+                const isActive = item.slug === slug;
+                return (
+                  <button
+                    key={item.slug}
+                    type="button"
+                    onClick={() => openRoute(item.slug)}
+                    aria-label={isHome ? "Go to homepage" : `Browse ${item.label}`}
+                    aria-current={isActive ? "page" : undefined}
+                    className={`searchonce-category-item group relative flex min-w-[62px] flex-1 flex-col items-center justify-center rounded-xl px-1 py-1.5 text-[10px] leading-tight sm:min-w-0 sm:py-2 sm:text-[11px] ${
+                      isActive ? "text-white" : "text-white/65 hover:text-white"
+                    }`}
+                    style={{ "--category-accent": item.color } as CSSProperties}
+                  >
+                    <span
+                      className={`searchonce-category-content ${
+                        isHome ? "searchonce-category-home" : ""
+                      }`}
+                    >
+                      <NavIcon name={item.icon} color={item.color} />
+                      <span className="whitespace-nowrap">{item.label}</span>
+                    </span>
+                    <span
+                      className={`absolute bottom-1 h-0.5 w-5 rounded-full transition-opacity ${
+                        isActive ? "opacity-100" : "opacity-0 group-hover:opacity-80"
+                      }`}
+                      style={{ background: item.color }}
+                      aria-hidden="true"
+                    />
+                  </button>
+                );
+              })}
             </div>
-         </nav>
+          </nav>
       </main>
    );
 }

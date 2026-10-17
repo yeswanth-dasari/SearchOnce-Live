@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -70,6 +70,52 @@ function formatPrice(amount: number, currencySymbol: string) {
     maximumFractionDigits: 0,
   }).format(amount);
   return `${currencySymbol}${formattedNumber}`;
+}
+
+
+const resultCategories = [
+  { label: "Mobiles", slug: "mobiles", accent: "#3B82F6", icon: "phone" },
+  { label: "Laptops", slug: "laptops", accent: "#A855F7", icon: "laptop" },
+  { label: "Electronics", slug: "electronics", accent: "#22C55E", icon: "headphones" },
+  { label: "Accessories", slug: "accessories", accent: "#F97316", icon: "bag" },
+  { label: "Tablets", slug: "tablets", accent: "#EF4444", icon: "tablet" },
+  { label: "Wearables", slug: "wearables", accent: "#A855F7", icon: "watch" },
+  { label: "TVs", slug: "tvs", accent: "#EAB308", icon: "tv" },
+  { label: "Gaming", slug: "gaming", accent: "#A855F7", icon: "gamepad" },
+  { label: "Cameras", slug: "cameras", accent: "#EC4899", icon: "camera" },
+];
+
+function CategoryIcon({ name }: { name: string }) {
+  const common = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
+
+  switch (name) {
+    case "phone":
+      return <svg viewBox="0 0 24 24" aria-hidden="true" {...common}><rect x="7" y="2.5" width="10" height="19" rx="2" /><path d="M10 5h4M11 18.5h2" /></svg>;
+    case "laptop":
+      return <svg viewBox="0 0 24 24" aria-hidden="true" {...common}><rect x="5" y="3" width="14" height="13" rx="1.5" /><path d="M2.5 20h19l-2-4H4.5z" /></svg>;
+    case "headphones":
+      return <svg viewBox="0 0 24 24" aria-hidden="true" {...common}><path d="M3.5 13v-1a8.5 8.5 0 0 1 17 0v1" /><rect x="3" y="12" width="4" height="8" rx="1.5" /><rect x="17" y="12" width="4" height="8" rx="1.5" /></svg>;
+    case "bag":
+      return <svg viewBox="0 0 24 24" aria-hidden="true" {...common}><path d="M4 8h16l1 13H3L4 8Z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" /></svg>;
+    case "tablet":
+      return <svg viewBox="0 0 24 24" aria-hidden="true" {...common}><rect x="5" y="2.5" width="14" height="19" rx="2" /><path d="M10 5h4M11 18.5h2" /></svg>;
+    case "watch":
+      return <svg viewBox="0 0 24 24" aria-hidden="true" {...common}><rect x="7" y="6" width="10" height="12" rx="3" /><path d="m9 6-1-3h8l-1 3m-6 12 1 3h4l1-3M10 10h4" /></svg>;
+    case "tv":
+      return <svg viewBox="0 0 24 24" aria-hidden="true" {...common}><rect x="3" y="4" width="18" height="13" rx="1.5" /><path d="M9 21h6m-3-4v4" /></svg>;
+    case "gamepad":
+      return <svg viewBox="0 0 24 24" aria-hidden="true" {...common}><path d="M7 8h10a4 4 0 0 1 3.8 3l1 4.5a2.5 2.5 0 0 1-4.1 2.4L15 15H9l-2.7 2.9a2.5 2.5 0 0 1-4.1-2.4l1-4.5A4 4 0 0 1 7 8Z" /><path d="M7 11v4m-2-2h4m7-1h.01M18 14h.01" /></svg>;
+    case "camera":
+      return <svg viewBox="0 0 24 24" aria-hidden="true" {...common}><path d="M4 7h4l1.5-2h5L16 7h4a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 20 20H4a1.5 1.5 0 0 1-1.5-1.5v-10A1.5 1.5 0 0 1 4 7Z" /><circle cx="12" cy="13" r="4" /></svg>;
+    default:
+      return null;
+  }
 }
 
 function ResultsContent() {
@@ -227,7 +273,7 @@ function ResultsContent() {
   };
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white">
+    <main className="min-h-screen bg-[#050505] pb-24 text-white">
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#050505]/95 backdrop-blur-xl">
         <div className="mx-auto max-w-7xl px-4 py-3 sm:px-6 sm:py-4">
           <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 sm:gap-4">
@@ -447,6 +493,48 @@ function ResultsContent() {
           </>
         )}
       </section>
+
+      {/* Shared glass category navigation, matching the homepage treatment. */}
+      <nav
+        className="searchonce-category-nav fixed inset-x-0 bottom-0 z-[60] w-full"
+        aria-label="Product categories"
+      >
+        <div className="searchonce-category-nav-inner mx-auto flex min-h-[76px] w-full items-center justify-between gap-1 px-1.5 pb-[env(safe-area-inset-bottom)] sm:px-4 lg:px-8">
+          {resultCategories.map((category) => (
+            <Link
+              key={category.slug}
+              href={`/category/${category.slug}?country=${encodeURIComponent(selectedCountry)}`}
+              className="searchonce-category-item flex min-w-0 flex-1 items-center justify-center rounded-2xl px-0.5 py-2 sm:px-2"
+              style={{ "--category-accent": category.accent } as CSSProperties}
+              aria-label={category.label}
+            >
+              <span className="searchonce-category-content min-w-0">
+                <span className="h-5 w-5 sm:h-6 sm:w-6" style={{ color: category.accent }}>
+                  <CategoryIcon name={category.icon} />
+                </span>
+                <span className="max-w-full truncate text-[10px] leading-4 text-white/75 sm:text-xs">
+                  {category.label}
+                </span>
+              </span>
+            </Link>
+          ))}
+
+          <Link
+            href="/"
+            className="searchonce-category-item searchonce-category-home ml-1 flex min-w-[48px] shrink-0 items-center justify-center border-l border-white/15 pl-1.5 sm:ml-3 sm:min-w-[64px] sm:pl-3"
+            style={{ "--category-accent": "#60A5FA" } as CSSProperties}
+            aria-label="Home"
+          >
+            <span className="searchonce-category-content">
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m3 10 9-7 9 7" /><path d="M5.5 9v11h13V9M9.5 20v-7h5v7" />
+              </svg>
+              <span className="text-[10px] leading-4 text-white/80 sm:text-xs">Home</span>
+              <span className="h-0.5 w-5 rounded-full bg-sky-400" />
+            </span>
+          </Link>
+        </div>
+      </nav>
     </main>
   );
 }
