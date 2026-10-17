@@ -408,3 +408,27 @@ body {
     transition: none !important;
   }
 }
+
+.searchonce-description-wrap {
+  position: relative;
+  isolation: isolate;
+}
+
+.searchonce-description-wrap::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  top: -12px;
+  bottom: -12px;
+  left: 50%;
+  width: min(110%, 1000px);
+  transform: translateX(-50%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(5, 8, 13, 0.96) 0%,
+    rgba(5, 8, 13, 0.82) 38%,
+    rgba(5, 8, 13, 0.45) 65%,
+    transparent 82%
+  );
+}

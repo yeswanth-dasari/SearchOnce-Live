@@ -657,10 +657,17 @@ export default function Home() {
                </span>
             </h1>
             {/* Description */}
-            <p className="mt-3 max-w-[340px] px-1 text-sm leading-6 text-white/55 sm:mt-5 sm:max-w-xl sm:px-0 sm:text-lg sm:leading-7">
-               Find products from stores around you and compare prices,
-               availability and offers in one simple place.
+           
+         <div className="searchonce-description-wrap">
+        <p className="relative z-10 mx-auto mt-4 w-full max-w-[900px] px-3 text-center text-sm font-normal leading-6 text-white/90 sm:mt-5 sm:px-0 sm:text-base sm:leading-7">
+           <span className="block">
+               Find products from stores around you and compare prices, availability and offers
+           </span>
+           <span className="block">
+                 in one simple place.
+            </span>
             </p>
+            </div>
             {/* Search */}
             <div
                className="mt-5 flex w-full max-w-2xl items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.05] p-1.5 shadow-2xl backdrop-blur-xl sm:mt-7 sm:gap-3 sm:p-2 md:mt-8 md:max-w-[680px] lg:max-w-[600px] xl:max-w-2xl"
@@ -793,18 +800,19 @@ export default function Home() {
                {postalCode && `PIN / Postal code: ${postalCode}`}
             </p>
             {/* Bottom message */}
-            <div
-               className={`mt-4 sm:mt-8 md:mt-10 transition-all duration-700 ${
-                  started ? "opacity-0" : "animate-pulse opacity-60"
-               }`}
-            >
-               <p className="text-[10px] uppercase tracking-[0.14em] text-white/40 sm:text-xs sm:tracking-[0.3em]">
-                  Find what you're looking for
-               </p>
-            </div>
-            <p className="mt-3 px-3 pb-0 text-center text-[11px] text-white/25 sm:mt-3 sm:px-0 sm:text-xs">
-               One search • Multiple stores • Better decisions
-            </p>
+            
+         <div className="mt-4 flex flex-col items-center gap-2 pb-2 sm:mt-5">
+         <div className="flex w-full max-w-[440px] items-center justify-center gap-3">
+         <span className="h-px w-8 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)] sm:w-12" />
+         <p className="bg-gradient-to-r from-cyan-300 to-sky-400 bg-clip-text text-[10px] font-semibold uppercase tracking-[0.14em] text-transparent sm:text-xs sm:tracking-[0.3em]">
+             Find what you're looking for
+         </p>
+         <span className="h-px w-8 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)] sm:w-12" />
+         </div>
+         <p className="px-3 text-center text-[11px] text-slate-200 sm:px-0 sm:text-xs">
+            One search <span className="text-cyan-400">•</span> Multiple stores <span className="text-cyan-400">•</span> Better decisions
+         </p>
+         </div>
          </section>
       
       {/* Premium glass category navigation: swipe categories on small screens; Home stays accessible. */}
