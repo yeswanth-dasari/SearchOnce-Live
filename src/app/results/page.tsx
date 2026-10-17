@@ -135,6 +135,9 @@ function ResultsContent() {
     : "/";
 
   const [query, setQuery] = useState(initialQuery);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);  
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [results, setResults] = useState<ApiResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -191,6 +194,69 @@ function ResultsContent() {
     void fetchResults();
     return () => controller.abort();
   }, [initialQuery, selectedCountry]);
+  
+useEffect(() => {
+  const searchTerm = query.trim();
+
+  if (searchTerm.length < 2) {
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setSuggestionsLoading(false);
+    return;
+  }
+
+  const controller = new AbortController();
+
+  const timer = window.setTimeout(async () => {
+    setSuggestionsLoading(true);
+
+    try {
+      const params = new URLSearchParams({
+        q: searchTerm,
+        country: selectedCountry,
+      });
+
+      const response = await fetch(
+        `/api/suggestions?${params.toString()}`,
+        { signal: controller.signal }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setSuggestions([]);
+        return;
+      }
+
+      setSuggestions(
+        Array.isArray(data.suggestions)
+          ? data.suggestions
+              .filter(
+                (item: unknown): item is string =>
+                  typeof item === "string"
+              )
+              .slice(0, 6)
+          : []
+      );
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        error.name !== "AbortError"
+      ) {
+        setSuggestions([]);
+      }
+    } finally {
+      if (!controller.signal.aborted) {
+        setSuggestionsLoading(false);
+      }
+    }
+  }, 300);
+
+  return () => {
+    window.clearTimeout(timer);
+    controller.abort();
+  };
+  }, [query, selectedCountry]);
 
   const availableStores = useMemo(
     () => [...new Set(results.map((result) => result.store))],
@@ -233,11 +299,20 @@ function ResultsContent() {
   const bestStore = bestTotalStore ?? lowestListedStore;
   const usingKnownTotal = bestTotalStore !== null;
 
-  const handleSearch = () => {
-    if (query.trim()) {
-      router.push(`/results?q=${encodeURIComponent(query.trim())}&country=${encodeURIComponent(selectedCountry)}`);
-    }
-  };
+  
+const handleSearch = (searchTerm = query) => {
+  const trimmed = searchTerm.trim();
+
+  if (trimmed) {
+    setQuery(trimmed);
+    setShowSuggestions(false);
+
+    router.push(
+      `/results?q=${encodeURIComponent(trimmed)}&country=${encodeURIComponent(selectedCountry)}`
+    );
+  }
+};
+
 
   const openProductDetails = (item: ApiResult) => {
     const params = new URLSearchParams();
@@ -289,18 +364,73 @@ function ResultsContent() {
             </Link>
           </div>
           <div className="mt-3 flex items-center gap-3">
-            <div className="flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-white/[0.05] p-1">
-              <span className="ml-3 mr-2 text-lg text-white/40">⌕</span>
+          <div className="relative flex min-w-0 flex-1 items-center rounded-xl border border-white/10 bg-white/[0.05] p-1">              <span className="ml-3 mr-2 text-lg text-white/40">⌕</span>
               <input
                 type="text"
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => { if (event.key === "Enter") handleSearch(); }}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => {
+                      if (query.trim().length >= 2) {
+                      setShowSuggestions(true);
+                   }
+                }}
+                onKeyDown={(event) => {
+                     if (event.key === "Enter") {
+                       event.preventDefault();
+                       handleSearch();
+                     }
+
+                     if (event.key === "Escape") {
+                    setShowSuggestions(false);
+                   }
+                }}
                 className="h-10 min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-white/30"
                 placeholder="Search products..."
                 aria-label="Search products"
               />
-              <button onClick={handleSearch} className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-black transition hover:bg-white/90 sm:px-4 sm:text-sm">Search</button>
+            <button
+            type="button"
+            onClick={() => handleSearch()}
+            className="rounded-lg bg-white px-3 py-2 text-xs font-semibold text-black transition hover:bg-white/90 sm:px-4 sm:text-sm"
+            >
+                Search
+            </button>
+            {showSuggestions &&
+            query.trim().length >= 2 &&
+            (suggestionsLoading || suggestions.length > 0) && (
+            <div
+            role="listbox"
+            aria-label="Search suggestions"
+            className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#101114]/95 p-2 text-left shadow-2xl backdrop-blur-2xl"
+            onClick={(event) => event.stopPropagation()}
+            >
+            {suggestionsLoading && suggestions.length === 0 && (
+            <p className="px-3 py-3 text-sm text-white/50">
+               Finding suggestions...
+            </p>
+           )}
+
+           {suggestions.slice(0, 6).map((suggestion, index) => (
+            <button
+             key={`${suggestion}-${index}`}
+             type="button"
+             role="option"
+             aria-selected={false}
+             onClick={() => handleSearch(suggestion)}
+             className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-white/85 transition-colors hover:bg-white/[0.08] focus-visible:bg-white/[0.08] focus-visible:outline-none"
+            >
+            <span className="text-lg text-cyan-400/80">⌕</span>
+            <span className="min-w-0 flex-1 truncate">
+             {suggestion}
+            </span>
+            <span className="text-white/30">↗</span>
+           </button>
+            ))}
+            </div>
+             )}
             </div>
             <div className="hidden shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/60 sm:flex">
               <span>🌍</span><span>{selectedCountry}</span>

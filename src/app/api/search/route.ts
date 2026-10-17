@@ -1135,7 +1135,7 @@ export async function GET(request: Request) {
           badge: null as string | null,
           productUrl: item.product_link ?? null,
           reviews: typeof item.reviews === "number" ? item.reviews : null,
-          priceText: item.price ?? null,
+          priceText: formatMoney(price, config.symbol),
           provider: "Google Shopping via SerpApi" as const,
           shippingCost: shipping.amount,
           shippingStatus: shipping.status,

@@ -1,5 +1,5 @@
 "use client";
-import { useState, type CSSProperties} from "react";
+import { useEffect, useState, type CSSProperties} from "react";
 import { useRouter } from "next/navigation";
 type Store = {
    name: string;
@@ -305,6 +305,9 @@ function StoreLogo({ type }: { type: Store["type"] }) {
 export default function Home() {
    const [started, setStarted] = useState(false);
    const [query, setQuery] = useState("");
+   const [suggestions, setSuggestions] = useState<string[]>([]);
+   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+   const [showSuggestions, setShowSuggestions] = useState(false);
    const [country, setCountry] = useState("India");
    const [city, setCity] = useState("");
    const [locationState, setLocationState] = useState("");
@@ -315,11 +318,69 @@ export default function Home() {
    const [locationLoading, setLocationLoading] = useState(false);
    const [locationMessage, setLocationMessage] = useState("");
    const router = useRouter();
-   const goToResults = () => {
-      if (query.trim()) {
-         router.push(
+   useEffect(() => {
+   const searchTerm = query.trim();
+   if (searchTerm.length < 2) {
+       setSuggestions([]);
+      setShowSuggestions(false);
+      setSuggestionsLoading(false);
+    return;
+   }
+   const controller = new AbortController();
+   const timer = window.setTimeout(async () => {
+   setSuggestionsLoading(true);
+   try {
+      const params = new URLSearchParams({
+        q: searchTerm,
+        country,
+      });
+
+      const response = await fetch(
+        `/api/suggestions?${params.toString()}`,
+        { signal: controller.signal }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setSuggestions([]);
+        return;
+      }
+
+      setSuggestions(
+        Array.isArray(data.suggestions)
+          ? data.suggestions.filter(
+              (item: unknown): item is string =>
+                typeof item === "string"
+            )
+          : []
+       );
+       } catch (error) {
+         if (
+          !(error instanceof Error) ||
+          error.name !== "AbortError"
+         ) {
+             setSuggestions([]);
+          }
+         } finally {
+            if (!controller.signal.aborted) {
+            setSuggestionsLoading(false);
+          }
+       }
+   }, 300);
+
+   return () => {
+       window.clearTimeout(timer);
+       controller.abort();
+   };
+   }, [query, country]);
+
+   const goToResults = (searchTerm = query) => {
+      if (searchTerm.trim()) {
+       setShowSuggestions(false);
+            router.push(
             `/results?q=${encodeURIComponent(
-               query.trim()
+            searchTerm.trim()
             )}&country=${encodeURIComponent(country)}`
          );
       }
@@ -670,7 +731,7 @@ export default function Home() {
             </div>
             {/* Search */}
             <div
-               className="mt-5 flex w-full max-w-2xl items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.05] p-1.5 shadow-2xl backdrop-blur-xl sm:mt-7 sm:gap-3 sm:p-2 md:mt-8 md:max-w-[680px] lg:max-w-[600px] xl:max-w-2xl"
+               className="relative mt-5 flex w-full max-w-2xl items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.05] p-1.5 shadow-2xl backdrop-blur-xl sm:mt-7 sm:gap-3 sm:p-2 md:mt-8 md:max-w-[680px] lg:max-w-[600px] xl:max-w-2xl"
                onClick={(event) => event.stopPropagation()}
             >
                <div className="flex h-11 min-w-0 flex-1 items-center sm:h-12">
@@ -678,10 +739,22 @@ export default function Home() {
                   <input
                      type="text"
                      value={query}
-                     onChange={(event) => setQuery(event.target.value)}
+                     onChange={(event) => {
+                     setQuery(event.target.value);
+                     setShowSuggestions(true);
+                     }}
+                     onFocus={() => {
+                  if (query.trim().length >= 2) {
+                  setShowSuggestions(true);
+                  }
+                  }}
                      onKeyDown={(event) => {
                         if (event.key === "Enter") {
-                           goToResults();
+                         event.preventDefault();
+                        goToResults();
+                        }
+                           if (event.key === "Escape") {
+                           setShowSuggestions(false);
                         }
                      }}
                      placeholder="Search for a product, brand or anything..."
@@ -689,13 +762,45 @@ export default function Home() {
                   />
                </div>
                <button
-                  onClick={goToResults}
+                  onClick={() => goToResults()}
                   className="shrink-0 rounded-xl bg-white px-3 py-3 text-sm font-semibold text-black transition-all duration-300 hover:scale-[1.02] hover:bg-white/90 sm:px-5"
                >
                   Search
+               </button>   
+            {showSuggestions &&
+            query.trim().length >= 2 &&
+            (suggestionsLoading || suggestions.length > 0) && (
+            <div
+               role="listbox"
+               aria-label="Search suggestions"
+               className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#101114]/95 p-2 text-left shadow-2xl backdrop-blur-2xl"
+               onClick={(event) => event.stopPropagation()}
+             >
+            {suggestionsLoading && suggestions.length === 0 && (
+            <p className="px-3 py-3 text-sm text-white/50">
+                Finding suggestions...
+            </p>
+            )}
+               {suggestions.slice(0, 3).map((suggestion, index) => (
+            <button
+               key={`${suggestion}-${index}`}
+               type="button"
+               role="option"
+               aria-selected={false}
+               onClick={() => goToResults(suggestion)}
+               className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm text-white/85 transition-colors hover:bg-white/[0.08] focus-visible:bg-white/[0.08] focus-visible:outline-none"
+               >
+               <span className="text-lg text-cyan-400/80">⌕</span>
+               <span className="min-w-0 flex-1 truncate">
+               {suggestion}
+               </span>
+               <span className="text-white/30">↗</span>
                </button>
+                  ))}
+               </div>
+               )}
             </div>
-                        {/* Location and country controls */}
+         {/* Location and country controls */}
          <div
             className="mt-3 flex w-full max-w-5xl flex-wrap items-center justify-center gap-2 text-xs sm:mt-4 sm:gap-2 sm:text-sm md:max-w-[720px] lg:max-w-[640px] xl:max-w-5xl"
             onClick={(event) => event.stopPropagation()}
