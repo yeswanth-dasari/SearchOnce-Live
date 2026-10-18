@@ -731,7 +731,7 @@ export default function Home() {
             </div>
             {/* Search */}
             <div
-               className="relative mt-5 flex w-full max-w-2xl items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.05] p-1.5 shadow-2xl backdrop-blur-xl sm:mt-7 sm:gap-3 sm:p-2 md:mt-8 md:max-w-[680px] lg:max-w-[600px] xl:max-w-2xl"
+               className="relative z-50 mt-5 flex w-full max-w-2xl items-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.05] p-1.5 shadow-2xl backdrop-blur-xl sm:mt-7 sm:gap-3 sm:p-2 md:mt-8 md:max-w-[680px] lg:max-w-[600px] xl:max-w-2xl"
                onClick={(event) => event.stopPropagation()}
             >
                <div className="flex h-11 min-w-0 flex-1 items-center sm:h-12">
