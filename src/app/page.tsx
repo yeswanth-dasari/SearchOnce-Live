@@ -377,12 +377,23 @@ export default function Home() {
 
    const goToResults = (searchTerm = query) => {
       if (searchTerm.trim()) {
-       setShowSuggestions(false);
-            router.push(
-            `/results?q=${encodeURIComponent(
-            searchTerm.trim()
-            )}&country=${encodeURIComponent(country)}`
-         );
+         setShowSuggestions(false);
+
+         const params = new URLSearchParams({
+            q: searchTerm.trim(),
+            country,
+         });
+
+         if (city) params.set("city", city);
+         if (locationState) params.set("state", locationState);
+         if (locationCounty) params.set("county", locationCounty);
+
+         const selectedPostcode = postalCode || postcodeInput;
+         if (selectedPostcode.trim()) {
+            params.set("postcode", selectedPostcode.trim());
+         }
+
+         router.push(`/results?${params.toString()}`);
       }
    };
    const openCategory = (slug: string) => {
@@ -773,7 +784,16 @@ export default function Home() {
             <div
                role="listbox"
                aria-label="Search suggestions"
-               className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#101114]/95 p-2 text-left shadow-2xl backdrop-blur-2xl"
+               className="searchonce-suggestions-scroll absolute left-0 right-0 top-full z-50 mt-2 rounded-2xl border border-white/10 bg-[#101114]/95 p-2 text-left shadow-2xl backdrop-blur-2xl"
+               style={{
+                 height: 160,
+                 maxHeight: 160,
+                 overflowY: "auto",
+                 overflowX: "hidden",
+                 overscrollBehavior: "contain",
+                 WebkitOverflowScrolling: "touch",
+                 touchAction: "pan-y",
+               }}
                onClick={(event) => event.stopPropagation()}
              >
             {suggestionsLoading && suggestions.length === 0 && (
@@ -781,7 +801,7 @@ export default function Home() {
                 Finding suggestions...
             </p>
             )}
-               {suggestions.slice(0, 3).map((suggestion, index) => (
+               {suggestions.map((suggestion, index) => (
             <button
                key={`${suggestion}-${index}`}
                type="button"

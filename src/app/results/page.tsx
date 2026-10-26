@@ -124,6 +124,10 @@ function ResultsContent() {
 
   const initialQuery = searchParams.get("q") || "";
   const selectedCountry = (searchParams.get("country") as Country) || "India";
+  const selectedCity = searchParams.get("city") || "";
+  const selectedState = searchParams.get("state") || "";
+  const selectedCounty = searchParams.get("county") || "";
+  const selectedPostcode = searchParams.get("postcode") || "";
   const originCategory = searchParams.get("category") || "";
   const returnParams = new URLSearchParams({ country: selectedCountry });
   for (const key of ["city", "state", "county", "postcode"]) {
@@ -167,8 +171,18 @@ function ResultsContent() {
         setLoading(true);
         setError("");
 
+        const params = new URLSearchParams({
+          q: initialQuery,
+          country: selectedCountry,
+        });
+
+        if (selectedCity) params.set("city", selectedCity);
+        if (selectedState) params.set("state", selectedState);
+        if (selectedCounty) params.set("county", selectedCounty);
+        if (selectedPostcode) params.set("postcode", selectedPostcode);
+
         const response = await fetch(
-          `/api/search?q=${encodeURIComponent(initialQuery)}&country=${encodeURIComponent(selectedCountry)}`,
+          `/api/search?${params.toString()}`,
           { cache: "no-store", signal: controller.signal }
         );
 
@@ -193,7 +207,14 @@ function ResultsContent() {
 
     void fetchResults();
     return () => controller.abort();
-  }, [initialQuery, selectedCountry]);
+  }, [
+    initialQuery,
+    selectedCountry,
+    selectedCity,
+    selectedState,
+    selectedCounty,
+    selectedPostcode,
+  ]);
   
 useEffect(() => {
   const searchTerm = query.trim();
@@ -230,12 +251,10 @@ useEffect(() => {
 
       setSuggestions(
         Array.isArray(data.suggestions)
-          ? data.suggestions
-              .filter(
+          ? data.suggestions.filter(
                 (item: unknown): item is string =>
                   typeof item === "string"
               )
-              .slice(0, 6)
           : []
       );
     } catch (error) {
@@ -401,11 +420,11 @@ const handleSearch = (searchTerm = query) => {
             {showSuggestions &&
             query.trim().length >= 2 &&
             (suggestionsLoading || suggestions.length > 0) && (
-            <div
-            role="listbox"
-            aria-label="Search suggestions"
-            className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#101114]/95 p-2 text-left shadow-2xl backdrop-blur-2xl"
-            onClick={(event) => event.stopPropagation()}
+           <div
+              role="listbox"
+               aria-label="Search suggestions"
+                className="absolute left-0 right-0 top-full z-50 mt-2 max-h-72 overflow-y-auto overflow-x-hidden overscroll-contain rounded-2xl border border-white/10 bg-[#101114]/95 p-2 text-left shadow-2xl backdrop-blur-2xl"
+               onClick={(event) => event.stopPropagation()}
             >
             {suggestionsLoading && suggestions.length === 0 && (
             <p className="px-3 py-3 text-sm text-white/50">
@@ -413,7 +432,7 @@ const handleSearch = (searchTerm = query) => {
             </p>
            )}
 
-           {suggestions.slice(0, 6).map((suggestion, index) => (
+           {suggestions.map((suggestion, index) => (
             <button
              key={`${suggestion}-${index}`}
              type="button"
