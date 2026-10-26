@@ -308,6 +308,8 @@ export default function Home() {
    const [suggestions, setSuggestions] = useState<string[]>([]);
    const [suggestionsLoading, setSuggestionsLoading] = useState(false);
    const [showSuggestions, setShowSuggestions] = useState(false);
+   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+   const [showRecentSearches, setShowRecentSearches] = useState(false);
    const [country, setCountry] = useState("India");
    const [city, setCity] = useState("");
    const [locationState, setLocationState] = useState("");
@@ -318,6 +320,24 @@ export default function Home() {
    const [locationLoading, setLocationLoading] = useState(false);
    const [locationMessage, setLocationMessage] = useState("");
    const router = useRouter();
+
+   // Restore recent searches from this browser without affecting server rendering.
+   useEffect(() => {
+      try {
+         const saved = window.localStorage.getItem("searchonce-recent-searches");
+         if (saved) {
+            const parsed: unknown = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+               setRecentSearches(
+                  parsed.filter((item): item is string => typeof item === "string").slice(0, 8)
+               );
+            }
+         }
+      } catch {
+         // Ignore unavailable or invalid local storage data.
+      }
+   }, []);
+
    useEffect(() => {
    const searchTerm = query.trim();
    if (searchTerm.length < 2) {
@@ -377,10 +397,28 @@ export default function Home() {
 
    const goToResults = (searchTerm = query) => {
       if (searchTerm.trim()) {
+         const normalizedSearch = searchTerm.trim();
          setShowSuggestions(false);
+         setShowRecentSearches(false);
+
+         const updatedRecentSearches = [
+            normalizedSearch,
+            ...recentSearches.filter(
+               (item) => item.toLocaleLowerCase() !== normalizedSearch.toLocaleLowerCase()
+            ),
+         ].slice(0, 8);
+         setRecentSearches(updatedRecentSearches);
+         try {
+            window.localStorage.setItem(
+               "searchonce-recent-searches",
+               JSON.stringify(updatedRecentSearches)
+            );
+         } catch {
+            // Search navigation should still work if storage is unavailable.
+         }
 
          const params = new URLSearchParams({
-            q: searchTerm.trim(),
+            q: normalizedSearch,
             country,
          });
 
@@ -752,13 +790,23 @@ export default function Home() {
                      value={query}
                      onChange={(event) => {
                      setQuery(event.target.value);
-                     setShowSuggestions(true);
+                     if (event.target.value.trim().length > 0) {
+                        setShowSuggestions(true);
+                        setShowRecentSearches(false);
+                     } else {
+                        setShowSuggestions(false);
+                        setShowRecentSearches(true);
+                     }
                      }}
                      onFocus={() => {
-                  if (query.trim().length >= 2) {
-                  setShowSuggestions(true);
-                  }
-                  }}
+                        if (query.trim().length >= 2) {
+                           setShowSuggestions(true);
+                           setShowRecentSearches(false);
+                        } else {
+                           setShowSuggestions(false);
+                           setShowRecentSearches(true);
+                        }
+                     }}
                      onKeyDown={(event) => {
                         if (event.key === "Enter") {
                          event.preventDefault();
@@ -766,6 +814,7 @@ export default function Home() {
                         }
                            if (event.key === "Escape") {
                            setShowSuggestions(false);
+                           setShowRecentSearches(false);
                         }
                      }}
                      placeholder="Search for a product, brand or anything..."
@@ -778,6 +827,50 @@ export default function Home() {
                >
                   Search
                </button>   
+            {showRecentSearches && query.trim().length === 0 && recentSearches.length > 0 && (
+               <div
+                  role="listbox"
+                  aria-label="Recent searches"
+                  className="absolute left-0 right-0 top-full z-50 mt-2 rounded-2xl border border-white/10 bg-[#101114]/95 p-3 text-left shadow-2xl backdrop-blur-2xl"
+                  onClick={(event) => event.stopPropagation()}
+               >
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                     <div className="flex items-center gap-2 text-sm font-medium text-white/90">
+                        <span className="text-base text-cyan-300">◷</span>
+                        <span>Recent Searches</span>
+                     </div>
+                     <button
+                        type="button"
+                        onClick={() => {
+                           setRecentSearches([]);
+                           try {
+                              window.localStorage.removeItem("searchonce-recent-searches");
+                           } catch {
+                              // Ignore unavailable storage.
+                           }
+                        }}
+                        className="rounded-md px-2 py-1 text-xs text-cyan-300 transition hover:bg-white/[0.08] hover:text-cyan-200"
+                     >
+                        Clear All
+                     </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                     {recentSearches.map((recentSearch) => (
+                        <button
+                           key={recentSearch}
+                           type="button"
+                           role="option"
+                           aria-selected={false}
+                           onClick={() => goToResults(recentSearch)}
+                           className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-left text-xs text-white/80 transition hover:border-cyan-300/30 hover:bg-white/[0.09] sm:text-sm"
+                        >
+                           <span className="shrink-0 text-cyan-300/80">◷</span>
+                           <span className="max-w-[180px] truncate">{recentSearch}</span>
+                        </button>
+                     ))}
+                  </div>
+               </div>
+            )}
             {showSuggestions &&
             query.trim().length >= 2 &&
             (suggestionsLoading || suggestions.length > 0) && (
