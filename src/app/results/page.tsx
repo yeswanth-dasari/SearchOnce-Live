@@ -149,6 +149,45 @@ function ResultsContent() {
   const [storeFilter, setStoreFilter] = useState("All Stores");
   const [source, setSource] = useState("");
   const [providerMessage, setProviderMessage] = useState("");
+  const [compareItems, setCompareItems] = useState<ApiResult[]>([]);
+  const [compareNotice, setCompareNotice] = useState("");
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("searchonce-compare-products");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setCompareItems(parsed.slice(0, 4));
+      }
+    } catch (error) {
+      console.warn("Could not restore comparison selection", error);
+    }
+  }, []);
+
+  const persistCompareItems = (items: ApiResult[]) => {
+    setCompareItems(items);
+    try {
+      window.localStorage.setItem("searchonce-compare-products", JSON.stringify(items));
+    } catch (error) {
+      console.warn("Could not save comparison selection", error);
+    }
+  };
+
+  const toggleCompareItem = (item: ApiResult) => {
+    const alreadySelected = compareItems.some((selected) => selected.id === item.id && selected.store === item.store);
+    if (alreadySelected) {
+      persistCompareItems(compareItems.filter((selected) => !(selected.id === item.id && selected.store === item.store)));
+      setCompareNotice("Product removed from comparison.");
+      return;
+    }
+    if (compareItems.length >= 4) {
+      setCompareNotice("You can compare up to 4 offers. Remove one to add another.");
+      return;
+    }
+    const next = [...compareItems, item];
+    persistCompareItems(next);
+    setCompareNotice(`${next.length} of 4 products selected.`);
+  };
 
   useEffect(() => {
     if (!initialQuery.trim()) {
@@ -458,10 +497,10 @@ const handleSearch = (searchTerm = query) => {
         </div>
       </header>
 
-      <section className="mx-auto max-w-7xl px-6 py-10">
-        <div className="mb-8">
+      <section className="mx-auto max-w-7xl px-3 py-5 sm:px-6 sm:py-10">
+        <div className="mb-5 sm:mb-8">
           <p className="text-sm text-white/40">Search results</p>
-          <h1 className="mt-2 text-3xl font-semibold">Results for &quot;{initialQuery}&quot;</h1>
+          <h1 className="mt-2 break-words text-2xl font-semibold sm:text-3xl">Results for &quot;{initialQuery}&quot;</h1>
           <p className="mt-2 text-sm text-white/40">Showing offers for <span className="text-white/70">{selectedCountry}</span></p>
           <p className="mt-3 text-xs text-white/30">Shopping offers retrieved via {source || "SearchOnce API"}. Prices and availability can change; verify details with the seller before purchasing.</p>
           {providerMessage && (
@@ -494,7 +533,7 @@ const handleSearch = (searchTerm = query) => {
         {!loading && !error && results.length > 0 && (
           <>
             {bestStore && (
-              <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+              <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3 sm:mb-6 sm:p-5">
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-white/35">
@@ -524,22 +563,22 @@ const handleSearch = (searchTerm = query) => {
               </div>
             )}
 
-            <div className="mb-8 flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:flex-row md:items-center md:justify-between">
+            <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:mb-8 sm:gap-4 sm:p-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-medium">Compare offers</p>
                 <p className="mt-1 text-xs text-white/35">{filteredAndSortedResults.length} offers shown</p>
               </div>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="flex items-center gap-2">
+              <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:flex">
+                <div className="flex min-w-0 items-center justify-between gap-2">
                   <label className="text-xs text-white/40" htmlFor="store-filter">Store</label>
-                  <select id="store-filter" value={storeFilter} onChange={(event) => setStoreFilter(event.target.value)} className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none">
+                  <select id="store-filter" value={storeFilter} onChange={(event) => setStoreFilter(event.target.value)} className="min-w-0 max-w-full flex-1 rounded-xl border border-white/10 bg-black px-2 py-2 text-xs text-white outline-none sm:flex-none sm:px-3 sm:text-sm">
                     <option value="All Stores" className="bg-black">All Stores</option>
                     {availableStores.map((store) => <option key={store} value={store} className="bg-black">{store}</option>)}
                   </select>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center justify-between gap-2">
                   <label className="text-xs text-white/40" htmlFor="sort-by">Sort by</label>
-                  <select id="sort-by" value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="rounded-xl border border-white/10 bg-black px-3 py-2 text-sm text-white outline-none">
+                  <select id="sort-by" value={sortBy} onChange={(event) => setSortBy(event.target.value)} className="min-w-0 max-w-full flex-1 rounded-xl border border-white/10 bg-black px-2 py-2 text-xs text-white outline-none sm:flex-none sm:px-3 sm:text-sm">
                     <option value="total" className="bg-black">Lowest known total (price + shipping)</option>
                     <option value="lowest" className="bg-black">Lowest listed price</option>
                     <option value="rating" className="bg-black">Highest Rating</option>
@@ -549,7 +588,7 @@ const handleSearch = (searchTerm = query) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-3 sm:gap-6">
               {filteredAndSortedResults.map((item) => {
                 const isBestDeal = usingKnownTotal
                   ? item.id === bestTotalStore?.id
@@ -567,19 +606,19 @@ const handleSearch = (searchTerm = query) => {
                     tabIndex={0}
                     onClick={() => openProductDetails(item)}
                     onKeyDown={(event) => { if (event.key === "Enter") openProductDetails(item); }}
-                    className="group cursor-pointer rounded-3xl border border-white/10 bg-white/[0.04] p-6 transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.07]"
+                    className="group min-w-0 cursor-pointer rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition-all duration-300 hover:border-white/20 hover:bg-white/[0.07] sm:rounded-3xl sm:p-6 sm:hover:-translate-y-1"
                   >
-                    <div className="flex h-64 items-center justify-center overflow-hidden rounded-2xl bg-white">
+                    <div className="flex h-44 items-center justify-center overflow-hidden rounded-xl bg-white min-[420px]:h-32 sm:h-64 sm:rounded-2xl">
                       {item.image ? (
                         // Shopping thumbnails are supplied by the API, so use a standard img element.
-                        <img src={item.image} alt={item.product} className="h-full w-full object-contain p-6 transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+                        <img src={item.image} alt={item.product} className="h-full w-full object-contain p-3 transition-transform duration-500 group-hover:scale-105 sm:p-6" loading="lazy" />
                       ) : (
                         <span className="text-sm text-black/50">Product image unavailable</span>
                       )}
                     </div>
-                    <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+                    <div className="mt-3 flex min-w-0 flex-wrap items-start justify-between gap-1.5 sm:mt-5 sm:gap-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-semibold text-white/70">{item.store}</span>
+                        <span className="min-w-0 break-words text-xs font-semibold text-white/70 sm:text-sm">{item.store}</span>
                         {item.provider && (
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-white/45">
                             {item.provider === "eBay Browse API" ? "eBay" : "Google Shopping"}
@@ -600,18 +639,18 @@ const handleSearch = (searchTerm = query) => {
                         {item.badge && <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[10px] font-semibold tracking-wider text-white/50">{item.badge}</span>}
                       </div>
                     </div>
-                    <h2 className="mt-3 text-xl font-semibold">{item.product}</h2>
-                    <div className="mt-5 flex items-end justify-between gap-4">
+                    <h2 className="mt-2 line-clamp-2 break-words text-sm font-semibold leading-5 sm:mt-3 sm:text-xl sm:leading-normal">{item.product}</h2>
+                    <div className="mt-3 flex min-w-0 flex-col gap-3 sm:mt-5 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs text-white/40">Listed price</p>
-                        <p className="mt-1 text-2xl font-bold">{item.priceText || formatPrice(item.price, item.currencySymbol)}</p>
-                        <p className="mt-2 text-xs text-white/45">{item.shippingText || "Shipping cost not confirmed"}</p>
-                        <div className="mt-3 border-t border-white/10 pt-3">
-                          <p className="text-xs text-white/40">Total including known shipping</p>
-                          <p className="mt-1 text-lg font-semibold">
+                        <p className="text-[10px] text-white/40 sm:text-xs">Listed price</p>
+                        <p className="mt-1 break-words text-lg font-bold leading-tight sm:text-2xl">{item.priceText || formatPrice(item.price, item.currencySymbol)}</p>
+                        <p className="mt-1.5 break-words text-[10px] leading-4 text-white/45 sm:mt-2 sm:text-xs">{item.shippingText || "Shipping cost not confirmed"}</p>
+                        <div className="mt-2 border-t border-white/10 pt-2 sm:mt-3 sm:pt-3">
+                          <p className="text-[10px] leading-4 text-white/40 sm:text-xs">Total including known shipping</p>
+                          <p className="mt-1 break-words text-sm font-semibold sm:text-lg">
                             {item.totalPriceText || "Not confirmed"}
                           </p>
-                          <p className="mt-2 text-xs text-white/35">
+                          <p className="mt-1.5 break-words text-[10px] leading-4 text-white/35 sm:mt-2 sm:text-xs">
                             {usingKnownTotal
                               ? savingsAboveBestTotal === null
                                 ? "Not ranked by total: shipping is unconfirmed"
@@ -624,37 +663,57 @@ const handleSearch = (searchTerm = query) => {
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm">{item.rating !== null ? `⭐ ${item.rating}` : "Rating unavailable"}</p>
-                        {item.reviews !== null && item.reviews !== undefined && <p className="mt-1 text-xs text-white/40">{item.reviews.toLocaleString()} reviews</p>}
-                        <p className="mt-1 max-w-40 text-xs text-white/40">{item.delivery || "Delivery details not provided"}</p>
+                      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-left sm:block sm:text-right">
+                        <p className="text-xs sm:text-sm">{item.rating !== null ? `⭐ ${item.rating}` : "Rating unavailable"}</p>
+                        {item.reviews !== null && item.reviews !== undefined && <p className="mt-1 text-[10px] text-white/40 sm:text-xs">{item.reviews.toLocaleString()} reviews</p>}
+                        <p className="mt-1 min-w-0 break-words text-[10px] leading-4 text-white/40 sm:max-w-40 sm:text-xs">{item.delivery || "Delivery details not provided"}</p>
                       </div>
                     </div>
-                    <button type="button" onClick={(event) => { event.stopPropagation(); openProductDetails(item); }} className="mt-6 w-full rounded-xl bg-white py-3 text-sm font-semibold text-black transition hover:bg-white/90">View details →</button>
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-6">
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); toggleCompareItem(item); }}
+                        aria-pressed={compareItems.some((selected) => selected.id === item.id && selected.store === item.store)}
+                        className={`rounded-xl border px-2 py-2.5 text-[11px] font-semibold transition sm:px-3 sm:py-3 sm:text-sm ${compareItems.some((selected) => selected.id === item.id && selected.store === item.store) ? "border-sky-400 bg-sky-400/15 text-sky-200" : "border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.08]"}`}
+                      > {compareItems.some((selected) => selected.id === item.id && selected.store === item.store) ? "✓ Added" : "＋ Compare"}</button>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); openProductDetails(item); }} className="rounded-xl bg-white px-1 py-2.5 text-[11px] font-semibold text-black transition hover:bg-white/90 sm:py-3 sm:text-sm">View details →</button>
+                    </div>
                   </article>
                 );
               })}
             </div>
 
-            <div className="mt-10 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-center">
+            <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-center sm:mt-10 sm:p-5">
               <p className="text-xs leading-6 text-white/40">Total including known shipping is calculated only when the provider explicitly reports a shipping amount or free shipping. If shipping is unconfirmed, the total is left blank and the offer is not ranked by a delivered total. Taxes, customs duties and postal-code-specific charges may be extra; confirm the final amount with the seller before buying.</p>
             </div>
           </>
         )}
       </section>
 
+      {compareItems.length > 0 && (
+        <div className="fixed inset-x-3 bottom-[88px] z-[55] mx-auto max-w-5xl rounded-2xl border border-white/15 bg-[#111318]/95 p-3 shadow-2xl backdrop-blur-xl sm:inset-x-6 sm:p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">Compare products <span className="text-sky-300">({compareItems.length}/4)</span></p>
+              <p className="mt-1 text-xs text-white/45">{compareItems.map((item) => item.product).join(" · ")}</p>
+              {compareNotice && <p aria-live="polite" className="mt-1 text-xs text-sky-200">{compareNotice}</p>}
+            </div>
+            <button type="button" onClick={() => persistCompareItems([])} className="rounded-lg px-3 py-2 text-xs text-white/55 hover:bg-white/10 hover:text-white">Clear all</button>
+            <button type="button" onClick={() => router.push(`/compare?country=${encodeURIComponent(selectedCountry)}`)} disabled={compareItems.length < 2} className="rounded-xl bg-sky-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-40">Compare now →</button>
+          </div>
+        </div>
+      )}
+
       {/* Shared glass category navigation, matching the homepage treatment. */}
       <nav
         className="searchonce-category-nav fixed inset-x-0 bottom-0 z-[60] w-full"
         aria-label="Product categories"
       >
-        <div className="searchonce-category-nav-inner mx-auto flex min-h-[76px] w-full items-center justify-between gap-1 px-1.5 pb-[env(safe-area-inset-bottom)] sm:px-4 lg:px-8">
-          {resultCategories.map((category) => (
+          <div className="searchonce-category-nav-inner mx-auto flex min-h-[76px] w-full items-center justify-start gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain px-1.5 pb-[env(safe-area-inset-bottom)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-between sm:overflow-visible sm:px-4 lg:px-8">          {resultCategories.map((category) => (
             <Link
               key={category.slug}
               href={`/category/${category.slug}?country=${encodeURIComponent(selectedCountry)}`}
-              className="searchonce-category-item flex min-w-0 flex-1 items-center justify-center rounded-2xl px-0.5 py-2 sm:px-2"
-              style={{ "--category-accent": category.accent } as CSSProperties}
+              className="searchonce-category-item flex flex-none items-center justify-center rounded-2xl px-2 py-2 sm:min-w-0 sm:flex-1 sm:px-2"              style={{ "--category-accent": category.accent } as CSSProperties}
               aria-label={category.label}
             >
               <span className="searchonce-category-content min-w-0">
@@ -667,6 +726,21 @@ const handleSearch = (searchTerm = query) => {
               </span>
             </Link>
           ))}
+
+          <Link
+            href={`/compare?country=${encodeURIComponent(selectedCountry)}`}
+            className="searchonce-category-item flex min-w-[48px] shrink-0 items-center justify-center rounded-2xl px-1.5 py-2 transition hover:bg-white/[0.06] sm:min-w-[64px] sm:px-2"
+            style={{ "--category-accent": "#38BDF8" } as CSSProperties}
+            aria-label="Compare products"
+          >
+            <span className="searchonce-category-content">
+              <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 7h12M12 3l4 4-4 4M20 17H8m4-4-4 4 4 4" />
+              </svg>
+              <span className="text-[10px] leading-4 text-white/80 sm:text-xs">Compare</span>
+              {compareItems.length > 0 && <span className="text-[9px] font-bold text-sky-300">{compareItems.length}/4</span>}
+            </span>
+          </Link>
 
           <Link
             href="/"

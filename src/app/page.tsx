@@ -115,6 +115,7 @@ type CategoryIconName =
    | "tv"
    | "gamepad"
    | "camera"
+   | "compare"
    | "home";
 
 type NavigationCategory = {
@@ -134,6 +135,7 @@ const navigationCategories: NavigationCategory[] = [
    { slug: "tvs", label: "TVs", icon: "tv", color: "#EAB308" },
    { slug: "gaming", label: "Gaming", icon: "gamepad", color: "#9333EA" },
    { slug: "cameras", label: "Cameras", icon: "camera", color: "#EC4899" },
+   { slug: "compare", label: "Compare", icon: "compare", color: "#38BDF8" },
    { slug: "home", label: "Home", icon: "home", color: "#F3F4F6" },
 ];
 
@@ -193,6 +195,11 @@ function CategoryIcon({
             <path d="M3 8h4l1.5-3h7L17 8h4v12H3V8Z" />
             <circle cx="12" cy="14" r="4" />
             <path d="M18 10h.01" />
+         </>}
+         {name === "compare" && <>
+            <rect x="3" y="4" width="6" height="12" rx="1.5" />
+            <rect x="15" y="8" width="6" height="12" rx="1.5" />
+            <path d="M9 7h5l-2-2m2 2-2 2M15 17h-5l2-2m-2 2 2 2" />
          </>}
          {name === "home" && <>
             <path d="m3 10 9-7 9 7" />
@@ -437,6 +444,16 @@ export default function Home() {
    const openCategory = (slug: string) => {
       if (slug === "home") {
          router.push("/");
+         return;
+      }
+      if (slug === "compare") {
+         const params = new URLSearchParams({ country });
+         if (city) params.set("city", city);
+         if (locationState) params.set("state", locationState);
+         if (locationCounty) params.set("county", locationCounty);
+         const selectedPostcode = postalCode || postcodeInput;
+         if (selectedPostcode) params.set("postcode", selectedPostcode);
+         router.push(`/compare?${params.toString()}`);
          return;
       }
       const params = new URLSearchParams({ country });
