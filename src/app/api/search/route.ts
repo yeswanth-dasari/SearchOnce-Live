@@ -563,6 +563,111 @@ function isLikelyAccessoryOnlyTitleForDeviceSearch(
   return !hasHandsetEvidence(item);
 
 }
+type StrictVariantAttributes = {
+  storage: number | null;
+  ram: number | null;
+  color: string | null;
+};
+
+function extractStrictVariantAttributes(
+  value: string
+): StrictVariantAttributes {
+  const normalized = normalizeText(value);
+
+  // Extract RAM separately so it is not confused with storage.
+  const ramMatch = normalized.match(
+    /\b(\d{1,3})\s*gb\s*ram\b|\bram\s*[:\-]?\s*(\d{1,3})\s*gb\b/
+  );
+
+  const ram = ramMatch
+    ? Number(ramMatch[1] ?? ramMatch[2])
+    : null;
+
+  const withoutRam = normalized
+    .replace(/\b\d{1,3}\s*gb\s*ram\b/g, " ")
+    .replace(/\bram\s*[:\-]?\s*\d{1,3}\s*gb\b/g, " ");
+
+  const storageMatch = withoutRam.match(
+    /\b(\d{1,4})\s*(tb|gb)\b/
+  );
+
+  const storage = storageMatch
+    ? Number(storageMatch[1]) *
+      (storageMatch[2] === "tb" ? 1024 : 1)
+    : null;
+
+  const colors = [
+    "natural titanium",
+    "desert titanium",
+    "black titanium",
+    "white titanium",
+    "space black",
+    "space gray",
+    "space grey",
+    "starlight",
+    "midnight",
+    "black",
+    "white",
+    "silver",
+    "gold",
+    "gray",
+    "grey",
+    "blue",
+    "green",
+    "red",
+    "pink",
+    "purple",
+    "yellow",
+    "orange",
+    "brown",
+  ];
+
+  const color =
+    colors.find((candidate) =>
+      new RegExp(`\\b${candidate}\\b`).test(normalized)
+    ) ?? null;
+
+  return { storage, ram, color };
+}
+
+function hasStrictVariantMismatch(
+  item: SerpShoppingResult,
+  query: string
+): boolean {
+  const requested = extractStrictVariantAttributes(query);
+
+  const listingText = [
+    item.title ?? "",
+    item.snippet ?? "",
+    item.tagline ?? "",
+    ...(item.extensions ?? []),
+  ].join(" ");
+
+  const actual = extractStrictVariantAttributes(listingText);
+
+  if (
+    requested.storage !== null &&
+    requested.storage !== actual.storage
+  ) {
+    return true;
+  }
+
+  if (
+    requested.ram !== null &&
+    requested.ram !== actual.ram
+  ) {
+    return true;
+  }
+
+  if (
+    requested.color !== null &&
+    requested.color !== actual.color
+  ) {
+    return true;
+  }
+
+  return false;
+}
 
 function isLikelyWrongVariant(item: SerpShoppingResult, query: string): boolean {
 
@@ -571,6 +676,8 @@ function isLikelyWrongVariant(item: SerpShoppingResult, query: string): boolean 
   if (!title) return true;
 
   const normalizedQuery = normalizeText(query);
+
+  if (hasStrictVariantMismatch(item, query)) return true;
 
   const queryTokens = getTokens(query);
 
@@ -1558,6 +1665,164 @@ function extractProductSpecs(title: string, descriptionParts: Array<string | und
 }
 
 
+
+type ProductOffer = {
+  id: string;
+  store: string;
+  product: string;
+  price: number;
+  currency: string;
+  currencySymbol: string;
+  priceText: string;
+  productUrl: string | null;
+  shippingCost: number | null;
+  shippingStatus: "known" | "unknown";
+  shippingText: string;
+  totalPrice: number | null;
+  totalPriceText: string | null;
+  delivery: string;
+  image: string;
+  provider: string;
+};
+
+type ProductGroup = {
+  id: string;
+  product: string;
+  image: string;
+  brand: string | null;
+  model: string | null;
+  color: string | null;
+  storage: string | null;
+  ram: string | null;
+  currency: string;
+  currencySymbol: string;
+  lowestPrice: number;
+  lowestPriceText: string;
+  offerCount: number;
+  stores: string[];
+  offers: ProductOffer[];
+};
+
+/**
+ * Build conservative cross-store groups without removing individual offers.
+ * When we cannot identify the variant confidently, only identical normalized
+ * titles are grouped; missing specifications are never treated as a match.
+ */
+function buildProductGroups(
+  results: Array<{
+    id: string;
+    store: string;
+    product: string;
+    image: string;
+    price: number;
+    currency: string;
+    currencySymbol: string;
+    priceText: string;
+    productUrl: string | null;
+    shippingCost: number | null;
+    shippingStatus: "known" | "unknown";
+    shippingText: string;
+    totalPrice: number | null;
+    totalPriceText: string | null;
+    delivery: string;
+    provider: string;
+    brand?: string | null;
+    model?: string | null;
+    color?: string | null;
+    storage?: string | null;
+    ram?: string | null;
+  }>,
+  query: string
+): ProductGroup[] {
+  const groups = new Map<string, ProductGroup>();
+
+  for (const item of results) {
+    const identity = getModelIdentity(item.product);
+    const variant = extractStrictVariantAttributes(item.product);
+    const brand = normalizeText(item.brand ?? "");
+    const modelVariantTokens = ["plus", "pro", "max", "ultra", "mini", "lite", "fold", "flip", "fe", "se", "air", "xl"];
+    const modelModifiers = modelVariantTokens.filter((token) => getTokens(item.product).has(token)).join("-");
+    const model = identity
+      ? `${identity.family}:${identity.model}:${identity.suffix}:${modelModifiers}`
+      : normalizeText(item.model ?? "");
+    const storageValue = variant.storage ?? (item.storage ? Number.parseFloat(item.storage) * (/tb/i.test(item.storage) ? 1024 : 1) : null);
+    const ramValue = variant.ram ?? (item.ram ? Number.parseFloat(item.ram) : null);
+    const storage = storageValue === null || !Number.isFinite(storageValue) ? null : String(storageValue);
+    const ram = ramValue === null || !Number.isFinite(ramValue) ? null : String(ramValue);
+    const color = variant.color ?? (item.color ? normalizeText(item.color) : null);
+    const titleFallback = normalizeText(item.product)
+      .replace(/\b(?:buy|online|best price|price|offer|offers|sale)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Require a stable model identity to group differently worded listings.
+    // Otherwise, group only when the normalized titles are identical.
+    const hasStableModel = Boolean(model);
+    const key = hasStableModel
+      ? [
+          item.currency,
+          brand || identity?.family || "unknown-brand",
+          model,
+          storage ?? "storage-unknown",
+          ram ?? "ram-unknown",
+          color ?? "color-unknown",
+        ].join("|")
+      : `${item.currency}|title:${titleFallback}`;
+
+    const offer: ProductOffer = {
+      id: item.id,
+      store: item.store,
+      product: item.product,
+      price: item.price,
+      currency: item.currency,
+      currencySymbol: item.currencySymbol,
+      priceText: item.priceText,
+      productUrl: item.productUrl,
+      shippingCost: item.shippingCost,
+      shippingStatus: item.shippingStatus,
+      shippingText: item.shippingText,
+      totalPrice: item.totalPrice,
+      totalPriceText: item.totalPriceText,
+      delivery: item.delivery,
+      image: item.image,
+      provider: item.provider,
+    };
+
+    const existing = groups.get(key);
+    if (existing) {
+      existing.offers.push(offer);
+      existing.offerCount = existing.offers.length;
+      existing.stores = [...new Set(existing.offers.map((entry) => entry.store))];
+      if (item.price < existing.lowestPrice) {
+        existing.lowestPrice = item.price;
+        existing.lowestPriceText = item.priceText;
+      }
+      if (!existing.image && item.image) existing.image = item.image;
+      continue;
+    }
+
+    groups.set(key, {
+      id: `group-${slugify(key)}`,
+      product: item.product,
+      image: item.image,
+      brand: item.brand ?? null,
+      model: item.model ?? (identity ? item.product.match(/\b(?:iPhone|Pixel|OnePlus|MacBook|Galaxy)\b.*$/i)?.[0] ?? null : null),
+      color: item.color ?? color,
+      storage: item.storage ?? storage,
+      ram: item.ram ?? ram,
+      currency: item.currency,
+      currencySymbol: item.currencySymbol,
+      lowestPrice: item.price,
+      lowestPriceText: item.priceText,
+      offerCount: 1,
+      stores: [item.store],
+      offers: [offer],
+    });
+  }
+
+  return [...groups.values()].sort((a, b) => a.lowestPrice - b.lowestPrice);
+}
+
 export async function GET(request: Request) {
 
   try {
@@ -1901,6 +2166,8 @@ export async function GET(request: Request) {
       resultCount: combinedResults.length,
 
       results: combinedResults,
+
+      productGroups: buildProductGroups(combinedResults, query),
 
       message,
 

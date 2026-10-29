@@ -39,6 +39,41 @@ type ApiResult = {
   totalPriceText?: string | null;
 };
 
+type ProductGroup = {
+  id: string;
+  product: string;
+  image: string | null;
+  brand: string | null;
+  model: string | null;
+  color: string | null;
+  storage: string | null;
+  ram: string | null;
+  currency: string;
+  currencySymbol: string;
+  lowestPrice: number;
+  lowestPriceText: string;
+  offerCount: number;
+  stores: string[];
+  offers: Array<{
+    id: string;
+    store: string;
+    product: string;
+    price: number;
+    currency: string;
+    currencySymbol: string;
+    priceText: string;
+    productUrl: string | null;
+    shippingCost: number | null;
+    shippingStatus: "known" | "unknown";
+    shippingText: string;
+    totalPrice: number | null;
+    totalPriceText: string | null;
+    delivery: string;
+    image: string | null;
+    provider: string;
+  }>;
+};
+
 type ApiResponse = {
   success: boolean;
   source?: string;
@@ -47,6 +82,7 @@ type ApiResponse = {
   currency: string;
   currencySymbol: string;
   results: ApiResult[];
+  productGroups?: ProductGroup[];
   message?: string;
   error?: string;
   providers?: {
@@ -143,6 +179,7 @@ function ResultsContent() {
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);  
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [results, setResults] = useState<ApiResult[]>([]);
+  const [productGroups, setProductGroups] = useState<ProductGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [sortBy, setSortBy] = useState("total");
@@ -231,6 +268,8 @@ function ResultsContent() {
         }
 
         setResults(Array.isArray(data.results) ? data.results : []);
+        setProductGroups(
+         Array.isArray(data.productGroups) ? data.productGroups : []);
         setSource(data.source || "Shopping results");
         setProviderMessage(data.providers?.ebay?.message || "");
       } catch (err) {
@@ -328,12 +367,11 @@ useEffect(() => {
 
     return [...filtered].sort((a, b) => {
       if (sortBy === "total") {
-        if (a.totalPrice !== null && a.totalPrice !== undefined &&
-            b.totalPrice !== null && b.totalPrice !== undefined) {
+        if (a.totalPrice != null && b.totalPrice != null) {
           return a.totalPrice - b.totalPrice;
         }
-        if (a.totalPrice !== null && a.totalPrice !== undefined) return -1;
-        if (b.totalPrice !== null && b.totalPrice !== undefined) return 1;
+        if (a.totalPrice != null) return -1;
+        if (b.totalPrice != null) return 1;
         return a.price - b.price;
       }
       if (sortBy === "lowest") return a.price - b.price;
@@ -345,6 +383,79 @@ useEffect(() => {
       return 0;
     });
   }, [results, storeFilter, sortBy]);
+
+  const visibleStoreGroups = useMemo(() => {
+    const byStore = new Map<string, ApiResult[]>();
+    for (const item of filteredAndSortedResults) {
+      const store = item.store?.trim() || "Unknown store";
+      const items = byStore.get(store) ?? [];
+      items.push(item);
+      byStore.set(store, items);
+    }
+    return [...byStore.entries()].map(([store, items]) => ({ store, items }));
+  }, [filteredAndSortedResults]);
+
+  const groupedStoreCards = visibleStoreGroups.filter((group) => group.items.length > 1);
+  const singleListingResults = visibleStoreGroups
+    .filter((group) => group.items.length === 1)
+    .map((group) => group.items[0]);
+
+  const visibleProductGroups = useMemo(() => {
+    const groups = productGroups
+      .map((group) => {
+        const offers = group.offers.filter(
+          (offer) =>
+            storeFilter === "All Stores" || offer.store === storeFilter
+        );
+        return { ...group, offers };
+      })
+      .filter((group) => group.offers.length > 0);
+
+    return groups.sort((a, b) => {
+      const getPrice = (group: ProductGroup) => {
+        const prices = group.offers.map((offer) => {
+          const original = results.find(
+            (item) => item.id === offer.id && item.store === offer.store
+          );
+          if (sortBy === "total" && original?.totalPrice != null) {
+            return original.totalPrice;
+          }
+          return offer.price;
+        });
+        return Math.min(...prices);
+      };
+
+      if (sortBy === "rating") {
+        const rating = (group: ProductGroup) =>
+          Math.max(
+            -1,
+            ...group.offers.map((offer) => {
+              const original = results.find(
+                (item) => item.id === offer.id && item.store === offer.store
+              );
+              return original?.rating ?? -1;
+            })
+          );
+        return rating(b) - rating(a);
+      }
+
+      if (sortBy === "delivery") {
+        const deliveryDays = (group: ProductGroup) =>
+          Math.min(
+            Number.MAX_SAFE_INTEGER,
+            ...group.offers.map((offer) => {
+              const original = results.find(
+                (item) => item.id === offer.id && item.store === offer.store
+              );
+              return original?.deliveryDays || Number.MAX_SAFE_INTEGER;
+            })
+          );
+        return deliveryDays(a) - deliveryDays(b);
+      }
+
+      return getPrice(a) - getPrice(b);
+    });
+  }, [productGroups, results, storeFilter, sortBy]);
 
   const lowestPrice = results.length ? Math.min(...results.map((item) => item.price)) : 0;
   const lowestListedStore = results.find((item) => item.price === lowestPrice) || null;
@@ -588,95 +699,87 @@ const handleSearch = (searchTerm = query) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:gap-6">
-              {filteredAndSortedResults.map((item) => {
-                const isBestDeal = usingKnownTotal
-                  ? item.id === bestTotalStore?.id
-                  : item.price === lowestPrice;
-                const itemTotal = item.totalPrice ?? null;
-                const savingsAboveBestTotal =
-                  itemTotal !== null && bestTotalStore?.totalPrice !== null && bestTotalStore?.totalPrice !== undefined
-                    ? itemTotal - bestTotalStore.totalPrice
-                    : null;
-                const savingsAboveLowestListed = item.price - lowestPrice;
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 sm:gap-6">
+              {groupedStoreCards.map((group) => {
+                const lowest = [...group.items].sort((a, b) => {
+                  const aPrice = sortBy === "total" ? (a.totalPrice ?? a.price) : a.price;
+                  const bPrice = sortBy === "total" ? (b.totalPrice ?? b.price) : b.price;
+                  return aPrice - bPrice;
+                })[0];
                 return (
-                  <article
-                    key={item.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openProductDetails(item)}
-                    onKeyDown={(event) => { if (event.key === "Enter") openProductDetails(item); }}
-                    className="group min-w-0 cursor-pointer rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition-all duration-300 hover:border-white/20 hover:bg-white/[0.07] sm:rounded-3xl sm:p-6 sm:hover:-translate-y-1"
-                  >
-                    <div className="flex h-44 items-center justify-center overflow-hidden rounded-xl bg-white min-[420px]:h-32 sm:h-64 sm:rounded-2xl">
-                      {item.image ? (
-                        // Shopping thumbnails are supplied by the API, so use a standard img element.
-                        <img src={item.image} alt={item.product} className="h-full w-full object-contain p-3 transition-transform duration-500 group-hover:scale-105 sm:p-6" loading="lazy" />
-                      ) : (
-                        <span className="text-sm text-black/50">Product image unavailable</span>
-                      )}
-                    </div>
-                    <div className="mt-3 flex min-w-0 flex-wrap items-start justify-between gap-1.5 sm:mt-5 sm:gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="min-w-0 break-words text-xs font-semibold text-white/70 sm:text-sm">{item.store}</span>
-                        {item.provider && (
-                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-white/45">
-                            {item.provider === "eBay Browse API" ? "eBay" : "Google Shopping"}
-                          </span>
-                        )}
-                        {item.condition && (
-                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-white/45">
-                            {item.condition}
-                          </span>
-                        )}
+                  <article key={`store-group-${group.store}`} className="min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.065] to-white/[0.025] p-4 shadow-[0_12px_35px_rgba(0,0,0,0.18)] transition hover:border-sky-400/25 min-[420px]:col-span-2 sm:rounded-3xl sm:p-6">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="break-words text-lg font-semibold tracking-tight sm:text-xl">{group.store}</p>
+                        <p className="mt-1 text-sm text-white/45">{group.items.length} matching listings from this store</p>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {isBestDeal && !item.badge && (
-                          <span className="rounded-full bg-white px-3 py-1 text-[10px] font-bold tracking-wider text-black">
-                            {usingKnownTotal ? "LOWEST TOTAL" : "LOWEST PRICE"}
-                          </span>
-                        )}
-                        {item.badge && <span className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[10px] font-semibold tracking-wider text-white/50">{item.badge}</span>}
+                      <span className="shrink-0 rounded-full border border-sky-400/30 bg-sky-400/10 px-3 py-1.5 text-xs font-medium text-sky-200">{group.items.length} offers</span>
+                    </div>
+                    <div className="mt-4 flex items-center gap-4 rounded-2xl border border-white/10 bg-black/25 p-3 sm:p-4">
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white sm:h-24 sm:w-24">
+                        {lowest.image ? <img src={lowest.image} alt={lowest.product} className="h-full w-full object-contain p-2" loading="lazy" /> : <span className="text-[10px] text-black/50">No image</span>}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium uppercase tracking-wide text-white/45">Lowest listed price</p>
+                        <p className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">{lowest.priceText || formatPrice(lowest.price, lowest.currencySymbol)}</p>
+                        <p className="mt-1 text-xs text-white/45">Best listed price across this store’s matching offers</p>
                       </div>
                     </div>
-                    <h2 className="mt-2 line-clamp-2 break-words text-sm font-semibold leading-5 sm:mt-3 sm:text-xl sm:leading-normal">{item.product}</h2>
-                    <div className="mt-3 flex min-w-0 flex-col gap-3 sm:mt-5 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[10px] text-white/40 sm:text-xs">Listed price</p>
-                        <p className="mt-1 break-words text-lg font-bold leading-tight sm:text-2xl">{item.priceText || formatPrice(item.price, item.currencySymbol)}</p>
-                        <p className="mt-1.5 break-words text-[10px] leading-4 text-white/45 sm:mt-2 sm:text-xs">{item.shippingText || "Shipping cost not confirmed"}</p>
-                        <div className="mt-2 border-t border-white/10 pt-2 sm:mt-3 sm:pt-3">
-                          <p className="text-[10px] leading-4 text-white/40 sm:text-xs">Total including known shipping</p>
-                          <p className="mt-1 break-words text-sm font-semibold sm:text-lg">
-                            {item.totalPriceText || "Not confirmed"}
-                          </p>
-                          <p className="mt-1.5 break-words text-[10px] leading-4 text-white/35 sm:mt-2 sm:text-xs">
-                            {usingKnownTotal
-                              ? savingsAboveBestTotal === null
-                                ? "Not ranked by total: shipping is unconfirmed"
-                                : isBestDeal
-                                  ? "Lowest known total"
-                                  : `${formatPrice(Math.max(0, savingsAboveBestTotal), item.currencySymbol)} above lowest known total`
-                              : isBestDeal
-                                ? "Lowest listed price"
-                                : `${formatPrice(Math.max(0, savingsAboveLowestListed), item.currencySymbol)} above lowest listed price`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-left sm:block sm:text-right">
-                        <p className="text-xs sm:text-sm">{item.rating !== null ? `⭐ ${item.rating}` : "Rating unavailable"}</p>
-                        {item.reviews !== null && item.reviews !== undefined && <p className="mt-1 text-[10px] text-white/40 sm:text-xs">{item.reviews.toLocaleString()} reviews</p>}
-                        <p className="mt-1 min-w-0 break-words text-[10px] leading-4 text-white/40 sm:max-w-40 sm:text-xs">{item.delivery || "Delivery details not provided"}</p>
-                      </div>
+                    <div className="mt-4 space-y-3">
+                      {group.items.map((item) => {
+                        const compared = compareItems.some((selected) => selected.id === item.id && selected.store === item.store);
+                        return (
+                          <div key={`${item.id}-${item.store}`} className="grid min-w-0 grid-cols-1 gap-3 rounded-2xl border border-white/10 bg-black/25 p-3 transition hover:border-sky-400/25 sm:p-4 md:grid-cols-[88px_minmax(0,1fr)_220px] md:items-center md:gap-4 lg:grid-cols-[104px_minmax(0,1fr)_250px]">
+                            <div className="flex h-24 w-full items-center justify-center overflow-hidden rounded-xl bg-white md:h-24 md:w-24">
+                              {item.image ? <img src={item.image} alt={item.product} className="h-full w-full object-contain p-2" loading="lazy" /> : <span className="text-xs text-black/50">No image</span>}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="break-words text-sm font-semibold leading-5 text-white sm:text-base">{item.product}</p>
+                              <p className="mt-2 text-xl font-bold tracking-tight sm:text-2xl">{item.priceText || formatPrice(item.price, item.currencySymbol)}</p>
+                              {item.condition && <p className="mt-1 break-words text-xs text-white/40">{item.condition}</p>}
+                              <p className="mt-2 flex items-start gap-2 break-words text-xs leading-5 text-white/50"><span aria-hidden="true">↗</span><span>{item.shippingText || "Shipping cost not confirmed"}</span></p>
+                              <p className="mt-1 flex items-start gap-2 break-words text-xs leading-5 text-white/45"><span aria-hidden="true">◷</span><span>{item.delivery || "Delivery details not provided by listing"}</span></p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 md:grid-cols-2">
+                              <button type="button" onClick={() => toggleCompareItem(item)} aria-pressed={compared} className={`min-h-11 rounded-xl border px-2 py-2.5 text-xs font-semibold transition sm:text-sm ${compared ? "border-sky-400 bg-sky-400/15 text-sky-200" : "border-white/20 bg-white/[0.02] hover:bg-white/10"}`}>{compared ? "✓ Added" : "＋ Compare"}</button>
+                              <button type="button" onClick={() => openProductDetails(item)} className="min-h-11 rounded-xl bg-white px-2 py-2.5 text-xs font-semibold text-black transition hover:bg-white/90 sm:text-sm">View details →</button>
+                              {item.productUrl && <button type="button" onClick={() => window.open(item.productUrl!, "_blank", "noopener,noreferrer")} className="col-span-2 min-h-11 rounded-xl border border-sky-400/50 bg-sky-400/[0.08] px-3 py-2.5 text-xs font-semibold text-sky-200 transition hover:bg-sky-400/15 sm:text-sm">Visit {item.store} ↗</button>}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-6">
-                      <button
-                        type="button"
-                        onClick={(event) => { event.stopPropagation(); toggleCompareItem(item); }}
-                        aria-pressed={compareItems.some((selected) => selected.id === item.id && selected.store === item.store)}
-                        className={`rounded-xl border px-2 py-2.5 text-[11px] font-semibold transition sm:px-3 sm:py-3 sm:text-sm ${compareItems.some((selected) => selected.id === item.id && selected.store === item.store) ? "border-sky-400 bg-sky-400/15 text-sky-200" : "border-white/15 bg-white/[0.04] text-white hover:bg-white/[0.08]"}`}
-                      > {compareItems.some((selected) => selected.id === item.id && selected.store === item.store) ? "✓ Added" : "＋ Compare"}</button>
-                      <button type="button" onClick={(event) => { event.stopPropagation(); openProductDetails(item); }} className="rounded-xl bg-white px-1 py-2.5 text-[11px] font-semibold text-black transition hover:bg-white/90 sm:py-3 sm:text-sm">View details →</button>
+                  </article>
+                );
+              })}
+              {singleListingResults.map((item) => {
+                const isBestDeal = usingKnownTotal ? item.id === bestTotalStore?.id : item.price === lowestPrice;
+                const itemTotal = item.totalPrice ?? null;
+                const savingsAboveBestTotal = itemTotal !== null && bestTotalStore?.totalPrice != null ? itemTotal - bestTotalStore.totalPrice : null;
+                const savingsAboveLowestListed = item.price - lowestPrice;
+                const isCompared = compareItems.some((selected) => selected.id === item.id && selected.store === item.store);
+                return (
+                  <article key={item.id} className="group min-w-0 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition hover:border-white/20 hover:bg-white/[0.07] sm:rounded-3xl sm:p-5">
+                    <div className="flex h-36 items-center justify-center overflow-hidden rounded-xl bg-white sm:h-48 sm:rounded-2xl">
+                      {item.image ? <img src={item.image} alt={item.product} className="h-full w-full object-contain p-3 sm:p-5" loading="lazy" /> : <span className="text-xs text-black/50">Product image unavailable</span>}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                      <p className="break-words text-xs font-semibold text-white/70 sm:text-sm">{item.store}</p>
+                      {isBestDeal && <span className="rounded-full bg-white px-2 py-1 text-[9px] font-bold text-black">{usingKnownTotal ? "LOWEST TOTAL" : "LOWEST PRICE"}</span>}
+                    </div>
+                    <h2 className="mt-2 line-clamp-3 break-words text-sm font-semibold leading-5 sm:text-base">{item.product}</h2>
+                    <p className="mt-3 text-[10px] text-white/40 sm:text-xs">Listed price</p>
+                    <p className="mt-1 break-words text-lg font-bold sm:text-2xl">{item.priceText || formatPrice(item.price, item.currencySymbol)}</p>
+                    <p className="mt-1 break-words text-[10px] leading-4 text-white/45 sm:text-xs">{item.shippingText || "Shipping cost not confirmed"}</p>
+                    <div className="mt-3 border-t border-white/10 pt-3">
+                      <p className="text-[10px] text-white/40 sm:text-xs">Total including known shipping</p>
+                      <p className="mt-1 break-words text-sm font-semibold sm:text-base">{item.totalPriceText || "Not confirmed"}</p>
+                      <p className="mt-1 break-words text-[10px] leading-4 text-white/35">{usingKnownTotal ? savingsAboveBestTotal === null ? "Shipping total not confirmed" : isBestDeal ? "Lowest known total" : `${formatPrice(Math.max(0, savingsAboveBestTotal), item.currencySymbol)} above lowest total` : isBestDeal ? "Lowest listed price" : `${formatPrice(Math.max(0, savingsAboveLowestListed), item.currencySymbol)} above lowest price`}</p>
+                      <p className="mt-2 break-words text-[10px] leading-4 text-white/45 sm:text-xs">{item.delivery || "Delivery details not provided"}</p>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => toggleCompareItem(item)} aria-pressed={isCompared} className={`rounded-xl border px-2 py-2.5 text-[10px] font-semibold sm:text-xs ${isCompared ? "border-sky-400 bg-sky-400/15 text-sky-200" : "border-white/15 bg-white/[0.04] hover:bg-white/[0.08]"}`}>{isCompared ? "✓ Added" : "＋ Compare"}</button>
+                      <button type="button" onClick={() => openProductDetails(item)} className="rounded-xl bg-white px-2 py-2.5 text-[10px] font-semibold text-black hover:bg-white/90 sm:text-xs">View details →</button>
                     </div>
                   </article>
                 );
